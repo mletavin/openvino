@@ -17,6 +17,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 #include "api/memory.hpp"
+#include "api/profiling.hpp"
 #include "event_impl.h"
 #include "refcounted_obj.h"
 #include "implementation_map.h"
@@ -28,6 +29,9 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <thread>
+#include <unordered_set>
+#include <atomic>
 
 namespace cldnn {
 namespace gpu {
@@ -46,6 +50,23 @@ struct program_node;
 
 template <class>
 struct typed_program_node;
+
+enum class et : int8_t {
+    mark,
+    begin,
+    end,
+    async_start,
+    async_finish
+};
+
+struct stored_event {
+    stored_event(const char* _name, int64_t _val, int _tid, et _type) : name(_name), value(_val), tid(_tid), type(_type){};
+
+    const char* name;
+    int64_t value;
+    int tid;
+    et type;
+};
 
 struct engine_impl : public refcounted_obj<engine_impl> {
 public:
@@ -135,9 +156,40 @@ public:
     bool supports_allocation(allocation_type type) const;
     allocation_type get_lockable_preffered_memory_allocation_type(bool is_image_layout = false) const;
 
+    void event_mark(const std::string name);
+    void event_begin(const std::string name);
+    void event_end(const std::string name);
+    void async_start(const std::string name);
+    void async_finish(const std::string name);
+    void logger_flush();
 private:
     engine_configuration _configuration;
     std::shared_ptr<gpu_toolkit> _context;
     memory_pool _memory_pool;
+
+    //std::unordered_map<std::string, std::vector<stored_event>> ev_store;
+    std::unordered_set<std::string> name_set;
+    std::vector<stored_event> ev_store;
+    std::atomic_flag lock;
+    cldnn::instrumentation::timer<std::chrono::high_resolution_clock> _timer;
+
+    void acquire_lock() {
+        while (lock.test_and_set(std::memory_order_acquire)) {}
+    }
+
+    void release_lock() {
+        lock.clear(std::memory_order_release);
+    }
+};
+
+struct logger_scope_internal {
+    explicit logger_scope_internal(engine_impl* logger, std::string name) :
+        _logger(logger), _name(name) {
+        if (_logger != nullptr)  _logger->event_begin(_name);
+    }
+    ~logger_scope_internal() { if (_logger != nullptr)  _logger->event_end(_name); }
+private:
+    std::string _name;
+    engine_impl* _logger;
 };
 }  // namespace cldnn

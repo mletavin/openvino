@@ -172,6 +172,12 @@ struct engine {
     /// @brief Returns type of the engine.
     engine_types get_type() const;
 
+    void event_mark(const std::string name);
+    void event_begin(const std::string name);
+    void event_end(const std::string name);
+    void async_start(const std::string name);
+    void async_finish(const std::string name);
+
     /// @brief get C API engine handler.
     engine_impl* get() const { return _impl; }
 
@@ -186,6 +192,23 @@ private:
     void release();
 };
 CLDNN_API_CLASS(engine)
+
+struct logger_mark {
+    explicit logger_mark(std::shared_ptr<engine> logger, std::string name) {
+        logger->event_mark(name);
+    }
+};
+
+struct logger_scope {
+    explicit logger_scope(std::shared_ptr<engine> logger, std::string name) :
+    _logger(logger), _name(name) {
+        if (_logger != nullptr)  _logger->event_begin(_name);
+    }
+    ~logger_scope() { if (_logger != nullptr)  _logger->event_end(_name); }
+private:
+    std::string _name;
+    std::shared_ptr<engine> _logger;
+};
 
 /// @}
 

@@ -14,6 +14,7 @@
 #include "ie_plugin.hpp"
 #include "cpp/ie_cnn_network.h"
 #include "debug_options.h"
+#include <api/profiling.hpp>
 #include <api/network.hpp>
 #include <api/memory.hpp>
 #include <api/primitive.hpp>

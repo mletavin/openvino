@@ -489,6 +489,7 @@ void network_impl::add_to_exec_order(const primitive_id& id) {
 }
 
 void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& events) {
+    logger_scope_internal(&get_engine(), "network_impl::execute()");
     // Wait for previous execution completion
     reset_execution(false);
 
@@ -512,6 +513,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     cl_int err;
     cl::SharedSurfLock lock(get_engine().get_context()->queue(get_id()).get(), surfaces, &err);
 
+    get_engine().event_mark("network_impl::execute() _exec_order loop");
     for (auto& inst : _exec_order) {
 #ifdef DEBUG_DUMP_PATH
         auto& node = _program->get_node(inst->id());
@@ -545,6 +547,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
 #endif
     }
 
+    get_engine().event_mark("network_impl::execute() collect events loop");
     for (auto& inst : _program->get_processing_order()) {
         // Special handling for mutable data. The event should be the same as the user or dependency with highest
         // processing_num as the mutable_data can be updated when is both user or dependency.
@@ -579,6 +582,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
         prim.second->reset_output_change();
     }
 
+    get_engine().event_mark("network_impl::execute() reset_events()");
     get_engine().get_context()->reset_events(get_id());
 
     // Using output of previouse network as input to another one may cause hazard (in OOOQ mode) if user would not

@@ -29,7 +29,36 @@
 #include <set>
 #include <stdexcept>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <unistd.h>
+#endif
+#include <fstream>
+#include <iostream>
+#include "document.h"
+#include "ostreamwrapper.h"
+#include "writer.h"
+
+
 namespace cldnn {
+
+void engine::event_mark(const std::string name) {
+    _impl->event_mark(name);
+}
+void engine::event_begin(const std::string name) {
+    _impl->event_begin(name);
+}
+void engine::event_end(const std::string name) {
+    _impl->event_end(name);
+}
+void engine::async_start(const std::string name) {
+    _impl->async_start(name);
+}
+void engine::async_finish(const std::string name) {
+    _impl->async_finish(name);
+}
 
 engine::engine(engine_types type, const device& dev, const engine_configuration& configuration)
     : _impl(new engine_impl(*dev.get(), configuration)) {
@@ -74,6 +103,7 @@ void engine::retain() {
     _impl->add_ref();
 }
 void engine::release() {
+    _impl->logger_flush();
     _impl->release();
 }
 
@@ -304,5 +334,159 @@ allocation_type engine_impl::get_lockable_preffered_memory_allocation_type(bool 
         return allocation_type::usm_host;
 
     throw std::runtime_error("[clDNN internal error] Could not find proper allocation type!");
+}
+
+void engine_impl::event_mark(const std::string name) {
+#ifdef _WIN32
+    int tid = (int)GetCurrentThreadId();
+#else
+    int tid = (int)(intptr_t)pthread_self();
+#endif
+    auto time = _timer.uptime();
+    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    acquire_lock();
+    auto name_itr = name_set.find(name);
+    if (name_itr == name_set.end()) {
+        name_itr = name_set.insert(name).first;
+    }
+    const char* ev_name = name_itr->c_str();
+    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::mark);
+    release_lock();
+}
+
+void engine_impl::event_begin(const std::string name) {
+#ifdef _WIN32
+    int tid = (int)GetCurrentThreadId();
+#else
+    int tid = (int)(intptr_t)pthread_self();
+#endif
+    auto time = _timer.uptime();
+    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    acquire_lock();
+    auto name_itr = name_set.find(name);
+    if (name_itr == name_set.end()) {
+        name_itr = name_set.insert(name).first;
+    }
+    const char* ev_name = name_itr->c_str();
+    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::begin);
+    release_lock();
+}
+
+void engine_impl::event_end(const std::string name) {
+#ifdef _WIN32
+    int tid = (int)GetCurrentThreadId();
+#else
+    int tid = (int)(intptr_t)pthread_self();
+#endif
+    auto time = _timer.uptime();
+    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    acquire_lock();
+    auto name_itr = name_set.find(name);
+    if (name_itr == name_set.end()) {
+        name_itr = name_set.insert(name).first;
+    }
+    const char* ev_name = name_itr->c_str();
+    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::end);
+    release_lock();
+}
+
+void engine_impl::async_start(const std::string name) {
+#ifdef _WIN32
+    int tid = (int)GetCurrentThreadId();
+#else
+    int tid = (int)(intptr_t)pthread_self();
+#endif
+    auto time = _timer.uptime();
+    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    acquire_lock();
+    auto name_itr = name_set.find(name);
+    if (name_itr == name_set.end()) {
+        name_itr = name_set.insert(name).first;
+    }
+    const char* ev_name = name_itr->c_str();
+    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::async_start);
+    release_lock();
+}
+
+void engine_impl::async_finish(const std::string name) {
+#ifdef _WIN32
+    int tid = (int)GetCurrentThreadId();
+#else
+    int tid = (int)(intptr_t)pthread_self();
+#endif
+    auto time = _timer.uptime();
+    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    acquire_lock();
+    auto name_itr = name_set.find(name);
+    if (name_itr == name_set.end()) {
+        name_itr = name_set.insert(name).first;
+    }
+    const char* ev_name = name_itr->c_str();
+    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::async_finish);
+    release_lock();
+}
+
+void engine_impl::logger_flush() {
+    if (ev_store.empty())
+        return;
+    std::sort(ev_store.begin(), ev_store.end(), [](const stored_event& ev1, const stored_event& ev2)->bool {
+        return ev1.value < ev2.value;
+        });
+    // flush all events to the JSON stream
+    // get current process id
+#ifdef _WIN32
+    int pid = (int)GetCurrentProcessId();
+#else
+    int pid = (int)getpid();
+#endif
+    std::string fname = "trace_";
+    fname += std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    fname += ".json";
+    std::ofstream ofs(fname);
+    rapidjson::OStreamWrapper osw(ofs);
+    rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
+    // rapidjson::Writer<rapidjson::StringBuffer> writer;
+    writer.StartArray();
+    for(auto& ev : ev_store) {
+        // iterate all events with this name
+        writer.StartObject();
+        writer.String("cat");
+        writer.String("cldnn");;
+
+        writer.String("pid");
+        writer.Int(pid);
+
+        writer.String("tid");
+        writer.Int(ev.tid);
+
+        writer.String("ts");
+        writer.Int64(ev.value);
+
+        writer.String("ph");
+        switch(ev.type) {
+        case et::mark:
+            writer.String("i");
+        break;
+        case et::begin:
+            writer.String("B");
+        break;
+        case et::end:
+            writer.String("E");
+        break;
+        case et::async_start:
+            writer.String("b");
+        break;
+        case et::async_finish:
+            writer.String("e");
+        break;
+        }
+        writer.String("name");
+        writer.String(ev.name);
+        writer.EndObject();
+    }
+    writer.EndArray();
+
+    // cleanup event storage memory
+    ev_store.clear();
 }
 }  // namespace cldnn
