@@ -357,6 +357,7 @@ void network_impl::reset_execution(bool wait) {
 }
 
 void network_impl::set_input_data(const primitive_id& id, memory_impl& data) {
+    volatile logger_scope_internal fscope(&get_engine(), "network_impl::set_input_data(" + id + ")");
     std::shared_ptr<primitive_inst> primitive_inst;
 
     primitive_inst = find_primitive(id);
@@ -489,7 +490,7 @@ void network_impl::add_to_exec_order(const primitive_id& id) {
 }
 
 void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& events) {
-    logger_scope_internal(&get_engine(), "network_impl::execute()");
+    volatile logger_scope_internal fscope(&get_engine(), "network_impl::execute()");
     // Wait for previous execution completion
     reset_execution(false);
 
@@ -513,60 +514,64 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     cl_int err;
     cl::SharedSurfLock lock(get_engine().get_context()->queue(get_id()).get(), surfaces, &err);
 
-    get_engine().event_mark("network_impl::execute() _exec_order loop");
-    for (auto& inst : _exec_order) {
+    {
+        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() _exec_order loop");
+        for (auto& inst : _exec_order) {
 #ifdef DEBUG_DUMP_PATH
-        auto& node = _program->get_node(inst->id());
+            auto& node = _program->get_node(inst->id());
 
-        std::string layer_name = node.id();
+            std::string layer_name = node.id();
 #if DUMP_VERBOSE
-        std::cerr << get_primitive_info(inst->id()) << std::endl;
+            std::cerr << get_primitive_info(inst->id()) << std::endl;
 #endif
 #if DUMP_SINGLE_LAYER
-        if (layer_name == DUMP_LAYER_NAME) {
+            if (layer_name == DUMP_LAYER_NAME) {
 #endif
-            std::cerr << "Dump " << layer_name << " layer" << std::endl;
-            for (size_t i = 0; i < get_primitive(inst->id())->dependencies().size(); i++) {
-                log_memory_to_file(get_primitive(inst->id())->dep_memory(i),
-                                   layer_name + "_src_" + std::to_string(i));
+                std::cerr << "Dump " << layer_name << " layer" << std::endl;
+                for (size_t i = 0; i < get_primitive(inst->id())->dependencies().size(); i++) {
+                    log_memory_to_file(get_primitive(inst->id())->dep_memory(i),
+                        layer_name + "_src_" + std::to_string(i));
+                }
+#if DUMP_SINGLE_LAYER
             }
-#if DUMP_SINGLE_LAYER
-        }
 #endif
 #endif
-        execute_primitive(inst, events);
+            execute_primitive(inst, events);
 #ifdef DEBUG_DUMP_PATH
 #if DUMP_SINGLE_LAYER
-        if (layer_name == DUMP_LAYER_NAME)
+            if (layer_name == DUMP_LAYER_NAME)
 #endif
-        {
-            log_memory_to_file(get_primitive(inst->id())->output_memory(), layer_name + "_dst_0");
-        }
+            {
+                log_memory_to_file(get_primitive(inst->id())->output_memory(), layer_name + "_dst_0");
+            }
 
-        get_engine().flush_network(get_id());
+            get_engine().flush_network(get_id());
 #endif
+        }
     }
 
-    get_engine().event_mark("network_impl::execute() collect events loop");
-    for (auto& inst : _program->get_processing_order()) {
-        // Special handling for mutable data. The event should be the same as the user or dependency with highest
-        // processing_num as the mutable_data can be updated when is both user or dependency.
-        if (inst->is_type<mutable_data>()) {
-            decltype(_program->get_processing_order().get_processing_number(inst)) proc_num = 0;
-            for (auto& user : inst->get_users()) {
-                auto user_proc_num = _program->get_processing_order().get_processing_number(user);
-                if (user_proc_num > proc_num) {
-                    _events[inst->id()] = _events[user->id()];
-                    proc_num = user_proc_num;
+    {
+        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() collect events loop");
+        for (auto& inst : _program->get_processing_order()) {
+            // Special handling for mutable data. The event should be the same as the user or dependency with highest
+            // processing_num as the mutable_data can be updated when is both user or dependency.
+            if (inst->is_type<mutable_data>()) {
+                decltype(_program->get_processing_order().get_processing_number(inst)) proc_num = 0;
+                for (auto& user : inst->get_users()) {
+                    auto user_proc_num = _program->get_processing_order().get_processing_number(user);
+                    if (user_proc_num > proc_num) {
+                        _events[inst->id()] = _events[user->id()];
+                        proc_num = user_proc_num;
+                    }
                 }
-            }
 
-            if (!inst->get_dependencies().empty()) {
-                for (auto& dep : inst->get_dependencies()) {
-                    auto dep_proc_num = _program->get_processing_order().get_processing_number(dep);
-                    if (dep_proc_num > proc_num) {
-                        _events[inst->id()] = _events[dep->id()];
-                        proc_num = dep_proc_num;
+                if (!inst->get_dependencies().empty()) {
+                    for (auto& dep : inst->get_dependencies()) {
+                        auto dep_proc_num = _program->get_processing_order().get_processing_number(dep);
+                        if (dep_proc_num > proc_num) {
+                            _events[inst->id()] = _events[dep->id()];
+                            proc_num = dep_proc_num;
+                        }
                     }
                 }
             }
@@ -582,8 +587,10 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
         prim.second->reset_output_change();
     }
 
-    get_engine().event_mark("network_impl::execute() reset_events()");
-    get_engine().get_context()->reset_events(get_id());
+    {
+        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() reset_events()");
+        get_engine().get_context()->reset_events(get_id());
+    }
 
     // Using output of previouse network as input to another one may cause hazard (in OOOQ mode) if user would not
     // provide proper event to execution. Flushing pipeline should prevent this kind of issues.

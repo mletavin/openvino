@@ -29,18 +29,22 @@
 #include <set>
 #include <stdexcept>
 
-#ifdef _WIN32
+#ifdef _MSC_VER
+#include <intrin.h>
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
+#include <x86intrin.h>
+#include <time.h>
 #include <pthread.h>
 #include <unistd.h>
 #endif
+
 #include <fstream>
 #include <iostream>
 #include "document.h"
 #include "ostreamwrapper.h"
 #include "writer.h"
-
 
 namespace cldnn {
 
@@ -336,93 +340,97 @@ allocation_type engine_impl::get_lockable_preffered_memory_allocation_type(bool 
     throw std::runtime_error("[clDNN internal error] Could not find proper allocation type!");
 }
 
-void engine_impl::event_mark(const std::string name) {
+time_logger::time_logger() {
 #ifdef _WIN32
-    int tid = (int)GetCurrentThreadId();
+    tid = (int)GetCurrentThreadId();
+    pid = (int)GetCurrentProcessId();
+    uint64_t _starttime;
+    QueryPerformanceCounter((LARGE_INTEGER*)&_starttime);
+    start_ticks = __rdtsc();
+    start_ns = (double)_starttime;
 #else
-    int tid = (int)(intptr_t)pthread_self();
+    tid = (int)(intptr_t)pthread_self();
+    pid = (int)getpid();
+    struct timespec time;
+	clock_gettime(CLOCK_MONOTONIC, &time);
+    start_ticks = __rdtsc();
+	start_ns = (double)time.tv_sec * 1.0e9 + (double)time.tv_nsec;
 #endif
-    auto time = _timer.uptime();
-    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+}
+
+double time_logger::ticks_per_usec() {
+#ifdef _WIN32
+    uint64_t _frequency, _time;
+    QueryPerformanceCounter((LARGE_INTEGER*)&_time);
+    QueryPerformanceFrequency((LARGE_INTEGER*)&_frequency);
+    uint64_t ticks = __rdtsc();
+    double ns = ((double)_time - start_ns) * 1.0e9 / (double)_frequency;
+#else
+    struct timespec time;
+	clock_gettime(CLOCK_MONOTONIC, &time);
+    uint64_t ticks = __rdtsc();
+	double ns = (double)time.tv_sec * 1.0e9 + (double)time.tv_nsec - start_ns;
+#endif
+    return ((double)ticks - (double)start_ticks) * 1.0e3 / ns;
+}
+
+void engine_impl::event_mark(const std::string name) {
+    uint64_t ticks = __rdtsc();
     acquire_lock();
     auto name_itr = name_set.find(name);
     if (name_itr == name_set.end()) {
         name_itr = name_set.insert(name).first;
     }
     const char* ev_name = name_itr->c_str();
-    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::mark);
+    ev_store.emplace_back(ev_name, ticks, et::mark);
     release_lock();
 }
 
 void engine_impl::event_begin(const std::string name) {
-#ifdef _WIN32
-    int tid = (int)GetCurrentThreadId();
-#else
-    int tid = (int)(intptr_t)pthread_self();
-#endif
-    auto time = _timer.uptime();
-    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    uint64_t ticks = __rdtsc();
     acquire_lock();
     auto name_itr = name_set.find(name);
     if (name_itr == name_set.end()) {
         name_itr = name_set.insert(name).first;
     }
     const char* ev_name = name_itr->c_str();
-    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::begin);
+    ev_store.emplace_back(ev_name, ticks, et::begin);
     release_lock();
 }
 
 void engine_impl::event_end(const std::string name) {
-#ifdef _WIN32
-    int tid = (int)GetCurrentThreadId();
-#else
-    int tid = (int)(intptr_t)pthread_self();
-#endif
-    auto time = _timer.uptime();
-    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    uint64_t ticks = __rdtsc();
     acquire_lock();
     auto name_itr = name_set.find(name);
     if (name_itr == name_set.end()) {
         name_itr = name_set.insert(name).first;
     }
     const char* ev_name = name_itr->c_str();
-    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::end);
+    ev_store.emplace_back(ev_name, ticks, et::end);
     release_lock();
 }
 
 void engine_impl::async_start(const std::string name) {
-#ifdef _WIN32
-    int tid = (int)GetCurrentThreadId();
-#else
-    int tid = (int)(intptr_t)pthread_self();
-#endif
-    auto time = _timer.uptime();
-    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    uint64_t ticks = __rdtsc();
     acquire_lock();
     auto name_itr = name_set.find(name);
     if (name_itr == name_set.end()) {
         name_itr = name_set.insert(name).first;
     }
     const char* ev_name = name_itr->c_str();
-    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::async_start);
+    ev_store.emplace_back(ev_name, ticks, et::async_start);
     release_lock();
 }
 
 void engine_impl::async_finish(const std::string name) {
-#ifdef _WIN32
-    int tid = (int)GetCurrentThreadId();
-#else
-    int tid = (int)(intptr_t)pthread_self();
-#endif
-    auto time = _timer.uptime();
-    auto mcrs = std::chrono::duration_cast<std::chrono::microseconds>(time);
+    uint64_t ticks = __rdtsc();
     acquire_lock();
     auto name_itr = name_set.find(name);
     if (name_itr == name_set.end()) {
         name_itr = name_set.insert(name).first;
     }
     const char* ev_name = name_itr->c_str();
-    ev_store.emplace_back(ev_name, mcrs.count(), tid, et::async_finish);
+    ev_store.emplace_back(ev_name, ticks, et::async_finish);
     release_lock();
 }
 
@@ -432,13 +440,9 @@ void engine_impl::logger_flush() {
     std::sort(ev_store.begin(), ev_store.end(), [](const stored_event& ev1, const stored_event& ev2)->bool {
         return ev1.value < ev2.value;
         });
+    double tpus = _timer.ticks_per_usec() ;
+
     // flush all events to the JSON stream
-    // get current process id
-#ifdef _WIN32
-    int pid = (int)GetCurrentProcessId();
-#else
-    int pid = (int)getpid();
-#endif
     std::string fname = "trace_";
     fname += std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     fname += ".json";
@@ -454,13 +458,13 @@ void engine_impl::logger_flush() {
         writer.String("cldnn");;
 
         writer.String("pid");
-        writer.Int(pid);
+        writer.Int(_timer.pid);
 
         writer.String("tid");
-        writer.Int(ev.tid);
+        writer.Int(_timer.tid);
 
         writer.String("ts");
-        writer.Int64(ev.value);
+        writer.Double( (double)(ev.value - _timer.start_ticks) / tpus);
 
         writer.String("ph");
         switch(ev.type) {

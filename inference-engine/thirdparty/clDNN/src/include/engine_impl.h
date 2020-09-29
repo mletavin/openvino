@@ -60,12 +60,21 @@ enum class et : int8_t {
 };
 
 struct stored_event {
-    stored_event(const char* _name, int64_t _val, int _tid, et _type) : name(_name), value(_val), tid(_tid), type(_type){};
+    stored_event(const char* _name, uint64_t _val, et _type) : name(_name), value(_val), type(_type){};
 
     const char* name;
-    int64_t value;
-    int tid;
+    uint64_t value;
     et type;
+};
+
+struct time_logger {
+    time_logger();
+    double ticks_per_usec();
+
+    double start_ns;
+    uint64_t start_ticks;
+    int tid;
+    int pid;
 };
 
 struct engine_impl : public refcounted_obj<engine_impl> {
@@ -171,7 +180,8 @@ private:
     std::unordered_set<std::string> name_set;
     std::vector<stored_event> ev_store;
     std::atomic_flag lock;
-    cldnn::instrumentation::timer<std::chrono::high_resolution_clock> _timer;
+    time_logger _timer;
+    // cldnn::instrumentation::timer<std::chrono::high_resolution_clock> _timer;
 
     void acquire_lock() {
         while (lock.test_and_set(std::memory_order_acquire)) {}
