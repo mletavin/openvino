@@ -61,7 +61,10 @@ void pass_manager::run(program_impl& p, base_pass& pass) {
     using Time = std::chrono::high_resolution_clock;
 
     auto start = Time::now();
-    pass.run(p);
+    {
+        logger_scope_internal pscope(&p.get_engine(), "{" + pass.get_name()+ "}");
+        pass.run(p);
+    }
     auto stop = Time::now();
     std::chrono::duration<float> fs = stop - start;
     ms opt_pass_time = std::chrono::duration_cast<ms>(fs);

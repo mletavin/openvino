@@ -605,6 +605,7 @@ struct detection_output_cpu : typed_primitive_impl<detection_output> {
     }
 
     event_impl::ptr execute_impl(const std::vector<event_impl::ptr>& events, detection_output_inst& instance) override {
+        logger_scope_internal fscope(&instance.get_network().get_engine(), "detection_output_cpu::execute_impl");
         for (auto& a : events) {
             a->wait();
         }

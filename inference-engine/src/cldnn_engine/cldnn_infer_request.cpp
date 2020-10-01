@@ -25,7 +25,7 @@ const char wrong_nv12_blob[] = "NV12 input blob is expected for input with NV12 
 
 Blob::Ptr CLDNNInferRequest::createInputBlob(const TensorDesc& desc, uint8_t* mem_ptr) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "createInputBlob()");
+    cldnn::logger_scope fscope(engine, "createInputBlob()");
     const Precision p = desc.getPrecision();
 
     switch (p) {
@@ -66,7 +66,7 @@ Blob::Ptr CLDNNInferRequest::createInputBlob(const TensorDesc& desc, uint8_t* me
 
 Blob::Ptr CLDNNInferRequest::createOutputBlob(const TensorDesc& desc, uint8_t* mem_ptr) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "createOutputBlob()");
+    cldnn::logger_scope fscope(engine, "createOutputBlob()");
     const Precision p = desc.getPrecision();
 
     switch (p) {
@@ -92,7 +92,7 @@ Blob::Ptr CLDNNInferRequest::createOutputBlob(const TensorDesc& desc, uint8_t* m
 
 void CLDNNInferRequest::input_attach(cldnn::primitive_id name, cldnn::memory& inputMem) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "input_attach("+name+")");
+    cldnn::logger_scope fscope(engine, "input_attach("+name+")");
     auto impl = getContextImpl(m_graph->GetContext());
     impl->acquire_lock();
 
@@ -108,7 +108,7 @@ void CLDNNInferRequest::input_attach(cldnn::primitive_id name, cldnn::memory& in
 
 void CLDNNInferRequest::input_alloc(cldnn::primitive_id name, const cldnn::layout& layout) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "input_alloc("+ name +")");
+    cldnn::logger_scope fscope(engine, "input_alloc("+ name +")");
     cldnn::memory input_mem = cldnn::memory::allocate(*(m_graph->GetEngine()), layout);
     input_attach(name, input_mem);
 }
@@ -117,7 +117,7 @@ void CLDNNInferRequest::copyOutputData(const cldnn::memory& outputMemory,
                                         Blob::Ptr bptr,
                                         buf_info* bi) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "copyOutputData()");
+    cldnn::logger_scope fscope(engine, "copyOutputData()");
     size_t n = (bi == nullptr) ? bptr->size() : bi->buf_size;
     size_t offset = (bi == nullptr) ? 0 : bi->buf_offset;
 
@@ -232,7 +232,7 @@ void CLDNNInferRequest::copyInputData(std::shared_ptr<cldnn::network> network,
                                     const cldnn::layout& inputLayout,
                                     const Blob &inputBlob, buf_info* bi) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "copyInputData("+ inputName +")");
+    cldnn::logger_scope fscope(engine, "copyInputData("+ inputName +")");
     size_t n = (bi == nullptr) ? inputBlob.size() : bi->buf_size;
     size_t offset = (bi == nullptr) ? 0 : bi->buf_offset;
 
@@ -340,7 +340,7 @@ void checkOutputBlob(const Blob::Ptr &blob,
 
 void CLDNNInferRequest::checkBlobs() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "checkBlobs()");
+    cldnn::logger_scope fscope(engine, "checkBlobs()");
     for (auto const &input : _inputs) {
         InputInfo::Ptr foundInput = nullptr;
         auto foundInputPair = std::find_if(std::begin(_networkInputs), std::end(_networkInputs),
@@ -353,7 +353,7 @@ void CLDNNInferRequest::checkBlobs() {
             THROW_IE_EXCEPTION << NOT_FOUND_str << "Failed to find input with name: \'" << input.first << "\'";
         }
         {
-            volatile cldnn::logger_scope iscope(engine, "checkInputBlob("+ input.first +")");
+            cldnn::logger_scope iscope(engine, "checkInputBlob("+ input.first +")");
             checkInputBlob(input.second, input.first, foundInput, m_graph->getConfig().nv12_two_inputs);
         }
     }
@@ -369,7 +369,7 @@ void CLDNNInferRequest::checkBlobs() {
             THROW_IE_EXCEPTION << NOT_FOUND_str << "Failed to find output with name: \'" << output.first << "\'";
         }
         {
-            volatile cldnn::logger_scope iscope(engine, "checkOutputBlob(" + output.first + ")");
+            cldnn::logger_scope iscope(engine, "checkOutputBlob(" + output.first + ")");
             checkOutputBlob(output.second, output.first, foundOutput);
         }
     }
@@ -377,7 +377,7 @@ void CLDNNInferRequest::checkBlobs() {
 
 void CLDNNInferRequest::GetBlob(const char *name, Blob::Ptr &data) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "GetBlob("+std::string(name)+")");
+    cldnn::logger_scope fscope(engine, "GetBlob("+std::string(name)+")");
     IE_PROFILING_AUTO_SCOPE(GetBlob)
     InputInfo::Ptr foundInput;
     DataPtr foundOutput;
@@ -391,14 +391,14 @@ void CLDNNInferRequest::GetBlob(const char *name, Blob::Ptr &data) {
         } else {
             data = _inputs[name];
             {
-                volatile cldnn::logger_scope iscope(engine, "checkInputBlob(" + std::string(name) + ")");
+                cldnn::logger_scope iscope(engine, "checkInputBlob(" + std::string(name) + ")");
                 checkInputBlob(data, name, foundInput);
             }
         }
     } else {
         data = _outputs[name];
         {
-            volatile cldnn::logger_scope iscope(engine, "checkOutputBlob(" + std::string(name) + ")");
+            cldnn::logger_scope iscope(engine, "checkOutputBlob(" + std::string(name) + ")");
             checkOutputBlob(data, name, foundOutput);
         }
     }
@@ -406,7 +406,7 @@ void CLDNNInferRequest::GetBlob(const char *name, Blob::Ptr &data) {
 
 void CLDNNInferRequest::SetBlob(const char *name, const Blob::Ptr &data) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "SetBlob("+ std::string(name)+")");
+    cldnn::logger_scope fscope(engine, "SetBlob("+ std::string(name)+")");
     IE_PROFILING_AUTO_SCOPE(SetBlob)
 
     // perform all common checks first
@@ -534,7 +534,7 @@ void CLDNNInferRequest::SetBlob(const char *name, const Blob::Ptr &data) {
 
 void CLDNNInferRequest::AllocateInputs() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "AllocateInputs()");
+    cldnn::logger_scope fscope(engine, "AllocateInputs()");
     // allocate inputs
     for (auto& ni : _networkInputs) {
         std::string name = ni.first;
@@ -575,7 +575,7 @@ void CLDNNInferRequest::AllocateInputs() {
 
 void CLDNNInferRequest::AllocateInputsDyn() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "AllocateInputsDyn()");
+    cldnn::logger_scope fscope(engine, "AllocateInputsDyn()");
     // allocate inputs
     for (auto &input : m_graph->GetInputLayouts()) {
         InputInfo::Ptr ni = _networkInputs.at(input.first);
@@ -602,7 +602,7 @@ void CLDNNInferRequest::AllocateInputsDyn() {
 
 void CLDNNInferRequest::AllocateOutputs() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "AllocateOutputs()");
+    cldnn::logger_scope fscope(engine, "AllocateOutputs()");
     // allocate outputs
     bool can_reuse_internal_mem = !m_useStreams;
     for (auto& no : _networkOutputs) {
@@ -629,7 +629,7 @@ void CLDNNInferRequest::AllocateOutputs() {
 
 void CLDNNInferRequest::AllocateOutputsDyn() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "AllocateOutputsDyn()");
+    cldnn::logger_scope fscope(engine, "AllocateOutputsDyn()");
     // allocate outputs
     for (auto& no : _networkOutputs) {
         DataPtr oi = no.second;
@@ -651,7 +651,7 @@ void CLDNNInferRequest::AllocateOutputsDyn() {
 void CLDNNInferRequest::SetGraph(std::shared_ptr<CLDNNPlugin::CLDNNGraph> graph) {
     m_graph = graph;
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "SetGraph()");
+    cldnn::logger_scope fscope(engine, "SetGraph()");
 
     if (m_graph == nullptr) {
         THROW_IE_EXCEPTION << NETWORK_NOT_LOADED_str;
@@ -669,7 +669,7 @@ void CLDNNInferRequest::SetGraph(std::shared_ptr<CLDNNPlugin::CLDNNGraph> graph)
 
 void CLDNNInferRequest::SetBatch(int new_batch) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "SetBatch()");
+    cldnn::logger_scope fscope(engine, "SetBatch()");
     if (m_graph->GetMaxDynamicBatchSize() < 0)
         THROW_IE_EXCEPTION << "Dynamic batch is not enabled.";
 
@@ -748,7 +748,7 @@ CLDNNInferRequest::CLDNNInferRequest(InputsDataMap networkInputs, OutputsDataMap
 
 void CLDNNInferRequest::execAndParse() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "execAndParse()");
+    cldnn::logger_scope fscope(engine, "execAndParse()");
 
     cldnn::logger_mark(engine, "execAndParse - execute start");
     auto networkOutputs = m_graph->GetNetwork()->execute();
@@ -756,9 +756,9 @@ void CLDNNInferRequest::execAndParse() {
 
     // Collect outputs as requested by the model
     {
-        volatile cldnn::logger_scope lscope(engine, "execAndParse get outputs");
+        cldnn::logger_scope lscope(engine, "execAndParse get outputs");
         for (auto& no : _networkOutputs) {
-            volatile cldnn::logger_scope iscope(engine, "get " + no.first);
+            cldnn::logger_scope iscope(engine, "get " + no.first);
             Blob::Ptr bptr = _outputs[no.first];
 
             std::string outputID = outputsMap[no.first];
@@ -787,7 +787,7 @@ void CLDNNInferRequest::execAndParse() {
 
 void CLDNNInferRequest::execAndParseDyn() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "execAndParseDyn()");
+    cldnn::logger_scope fscope(engine, "execAndParseDyn()");
     std::vector<std::map<cldnn::primitive_id, cldnn::network_output>> networkOutputs(m_graph->GetNetworksCount());
 
     cldnn::logger_mark(engine, "execAndParseDyn - execute start");
@@ -803,7 +803,7 @@ void CLDNNInferRequest::execAndParseDyn() {
 
     // now try to get execution results
     {
-        volatile cldnn::logger_scope lscope(engine, "execAndParseDyn - get outputs");
+        cldnn::logger_scope lscope(engine, "execAndParseDyn - get outputs");
         for (unsigned nb = 0; nb < m_graph->GetNetworksCount(); nb++) {
             unsigned int mask = 1 << nb;
 
@@ -822,7 +822,7 @@ void CLDNNInferRequest::execAndParseDyn() {
 
 void CLDNNInferRequest::InferImpl() {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "CLDNNInferRequest::InferImpl()");
+    cldnn::logger_scope fscope(engine, "CLDNNInferRequest::InferImpl()");
     IE_PROFILING_AUTO_SCOPE(CLDNN_INFER)
     int streamID = 0;
     if (nullptr != streamExecutor) {
@@ -831,12 +831,12 @@ void CLDNNInferRequest::InferImpl() {
     m_graph = static_cast<CLDNNExecNetwork*>(_exeNetwork.get())->m_graphs[streamID];
     // execute input pre-processing.
     {
-        volatile cldnn::logger_scope lscope(engine, "input preprocessing");
+        cldnn::logger_scope lscope(engine, "input preprocessing");
         execDataPreprocessing(_inputs, true);  // "true" stands for serial preprocessing in case of OpenMP
     }
 
     {
-        volatile cldnn::logger_scope lscope(engine, "prepare inputs");
+        cldnn::logger_scope lscope(engine, "prepare inputs");
         for (auto& item : _inputs) {
             std::string name = item.first;
             Blob::Ptr inputBlob = item.second;
@@ -901,7 +901,7 @@ void copyToFloat(float* dst, const InferenceEngine::Blob* src) {
 
 void CLDNNInferRequest::PrepareInput(const cldnn::primitive_id &inputName, const Blob &inputBlob) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "PrepareInput(" + inputName + ")");
+    cldnn::logger_scope fscope(engine, "PrepareInput(" + inputName + ")");
     // Get input layout
     if (m_graph->GetInputLayouts().find(inputName) == m_graph->GetInputLayouts().end()) {
         THROW_IE_EXCEPTION << "Input name mismatch.";
@@ -954,7 +954,7 @@ void CLDNNInferRequest::PrepareInput(const cldnn::primitive_id &inputName, const
 
 void CLDNNInferRequest::PrepareInputDyn(const cldnn::primitive_id &inputName, const Blob &inputBlob) {
     auto engine = getContextImpl(m_graph->GetContext())->GetEngine();
-    volatile cldnn::logger_scope fscope(engine, "PrepareInputDyn(" + inputName + ")");
+    cldnn::logger_scope fscope(engine, "PrepareInputDyn(" + inputName + ")");
     // now try to get execution results
     for (unsigned nb = 0; nb < m_graph->GetNetworksCount(); nb++) {
         unsigned int mask = 1 << nb;

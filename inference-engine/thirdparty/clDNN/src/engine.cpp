@@ -290,11 +290,15 @@ gpu::device_info_internal engine_impl::get_device_info() const { return _context
 void* engine_impl::get_user_context() const { return static_cast<void*>(_context->context().get()); }
 
 void engine_impl::compile_program(program_impl& program) {
+    logger_scope_internal fscope(this, "engine_impl::compile_program");
     auto& cache = _context->get_kernels_cache(program.get_id());
     if (!program.get_options().get<build_option_type::serialize_network>()->serialization_network_name.empty())
         cache.get_context().set_serialization_flag(true);
     // TODO: better compilation logic instead of a simple 'compile all'?
-    cache.build_all();
+    {
+        logger_scope_internal iscope(this, "compile_program - cache.build_all()");
+        cache.build_all();
+    }
 }
 
 bool engine_impl::use_memory_pool() const {

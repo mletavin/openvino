@@ -203,6 +203,7 @@ struct proposal_gpu : typed_primitive_impl<proposal> {
 
     template <typename dtype>
     void execute(proposal_inst& instance, dtype* proposal_prob_ptr = nullptr) {
+        logger_scope_internal fscope(&instance.get_network().get_engine(), "proposal_gpu::execute");
         const std::vector<proposal_inst::anchor>& anchors = instance.get_anchors();
 
         size_t anchors_num = anchors.size();
@@ -379,6 +380,7 @@ struct proposal_gpu : typed_primitive_impl<proposal> {
     }
 
     event_impl::ptr execute_impl(const std::vector<event_impl::ptr>& events, proposal_inst& instance) override {
+        logger_scope_internal fscope(&instance.get_network().get_engine(), "proposal_gpu::execute_impl");
         for (auto& a : events) {
             a->wait();
         }

@@ -357,7 +357,7 @@ void network_impl::reset_execution(bool wait) {
 }
 
 void network_impl::set_input_data(const primitive_id& id, memory_impl& data) {
-    volatile logger_scope_internal fscope(&get_engine(), "network_impl::set_input_data(" + id + ")");
+    logger_scope_internal fscope(&get_engine(), "network_impl::set_input_data(" + id + ")");
     std::shared_ptr<primitive_inst> primitive_inst;
 
     primitive_inst = find_primitive(id);
@@ -377,6 +377,7 @@ void network_impl::set_input_data(const primitive_id& id, memory_impl& data) {
 }
 
 void network_impl::set_output_memory(const primitive_id& id, memory_impl& mem) {
+    logger_scope_internal fscope(&get_engine(), "network_impl::allocate_primitives("+ id +")");
     std::shared_ptr<primitive_inst> primitive_inst;
 
     primitive_inst = find_primitive(id);
@@ -448,6 +449,7 @@ std::string network_impl::get_primitive_info(const primitive_id& id) const {
 }
 
 void network_impl::allocate_primitives() {
+    logger_scope_internal fscope(&get_engine(), "network_impl::allocate_primitives()");
     std::vector<std::shared_ptr<program_node>> nodes_to_allocate{};
     for (auto node : _program->get_processing_order()) {
         nodes_to_allocate.push_back(_program->get_node_ptr(node->id()));
@@ -490,7 +492,7 @@ void network_impl::add_to_exec_order(const primitive_id& id) {
 }
 
 void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& events) {
-    volatile logger_scope_internal fscope(&get_engine(), "network_impl::execute()");
+    logger_scope_internal fscope(&get_engine(), "network_impl::execute()");
     // Wait for previous execution completion
     reset_execution(false);
 
@@ -515,7 +517,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     cl::SharedSurfLock lock(get_engine().get_context()->queue(get_id()).get(), surfaces, &err);
 
     {
-        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() _exec_order loop");
+        logger_scope_internal lscope(&get_engine(), "network_impl::execute() _exec_order loop");
         for (auto& inst : _exec_order) {
 #ifdef DEBUG_DUMP_PATH
             auto& node = _program->get_node(inst->id());
@@ -551,7 +553,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     }
 
     {
-        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() collect events loop");
+        logger_scope_internal lscope(&get_engine(), "network_impl::execute() collect events loop");
         for (auto& inst : _program->get_processing_order()) {
             // Special handling for mutable data. The event should be the same as the user or dependency with highest
             // processing_num as the mutable_data can be updated when is both user or dependency.
@@ -588,7 +590,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     }
 
     {
-        volatile cldnn::logger_scope_internal lscope(&get_engine(), "network_impl::execute() reset_events()");
+        logger_scope_internal lscope(&get_engine(), "network_impl::execute() reset_events()");
         get_engine().get_context()->reset_events(get_id());
     }
 
@@ -673,6 +675,7 @@ std::vector<std::shared_ptr<primitive_inst>> network_impl::get_primitives(const 
 void network_impl::execute_primitive(const std::shared_ptr<primitive_inst>& primitive,
                                      const std::vector<refcounted_obj_ptr<event_impl>>& events) {
     auto id = primitive->id();
+    logger_scope_internal fscope(&get_engine(), "network_impl::execute_primitive("+id+")");
     auto it = _events.find(id);
     bool found = (it != _events.end());
     CLDNN_ERROR_BOOL(id,
@@ -689,6 +692,7 @@ void network_impl::execute_primitive(const std::shared_ptr<primitive_inst>& prim
 }
 
 void network_impl::allocate_mutable_data_for_streams(std::vector<std::shared_ptr<program_node>>& mutable_data_nodes) {
+    logger_scope_internal fscope(&get_engine(), "network_impl::allocate_mutable_data_for_streams()");
     // When multiple streams are used, mutable_data should be duplicated for each stream.
     while (!mutable_data_nodes.empty()) {
         auto it = mutable_data_nodes.begin();
@@ -720,6 +724,7 @@ void network_impl::allocate_mutable_data_for_streams(std::vector<std::shared_ptr
 }
 
 void network_impl::allocate_primitive_instance(program_node const& node) {
+    logger_scope_internal fscope(&get_engine(), "network_impl::allocate_primitive_instance("+ node.id() +")");
     if (_primitives.count(node.id()))
         return;
 
@@ -737,6 +742,7 @@ void network_impl::allocate_primitive_instance(program_node const& node) {
 }
 
 void network_impl::transfer_memory_to_device(std::shared_ptr<primitive_inst> instance, program_node const& node) {
+    logger_scope_internal fscope(&get_engine(), "network_impl::transfer_memory_to_device("+ node.id() +")");
     auto& inst_mem = instance->output_memory();
     auto alloc_type = inst_mem.get_allocation_type();
 

@@ -250,6 +250,7 @@ bool program_impl::analyze_output_size_handling_need() {
 // create new nodes for a program based on the set of nodes
 // method created to be used by propagate_constants to build sub program from constant nodes
 void program_impl::prepare_nodes(std::set<std::shared_ptr<program_node>> const& nodes) {
+    logger_scope_internal fscope(engine.get(), "program_impl::prepare_nodes()");
     for (const auto& itr : nodes) {
         if (itr.get()->is_type<data>()) {
             get_or_create(std::make_shared<input_layout>(itr.get()->id(),
@@ -283,6 +284,7 @@ void program_impl::prepare_nodes(std::set<std::shared_ptr<program_node>> const& 
 
 // create all nodes from topology primitives, add dependencies among them and create inputs list
 void program_impl::prepare_nodes(topology_impl const& topology) {
+    logger_scope_internal fscope(engine.get(), "program_impl::prepare_nodes(topology)");
     auto const& topo_map = topology.get_primitives();
     for (const auto& prim : topo_map) {
         get_or_create(prim.second);
@@ -360,6 +362,7 @@ void program_impl::set_options() {
 }
 
 void program_impl::build_program(bool is_internal) {
+    logger_scope_internal fscope(engine.get(), "program_impl::build_program");
     init_graph();
     { pre_optimize_graph(is_internal); }
     run_graph_compilation();
@@ -375,6 +378,7 @@ void program_impl::build_program(bool is_internal) {
 }
 
 void program_impl::init_graph() {
+    logger_scope_internal fscope(engine.get(), "program_impl::init_graph");
     apply_opt_pass<graph_initializations>();
 
     for (auto& node : processing_order) {
@@ -390,6 +394,7 @@ void program_impl::init_graph() {
 void program_impl::run_graph_compilation() { apply_opt_pass<compile_graph>(); }
 
 void program_impl::pre_optimize_graph(bool is_internal) {
+    logger_scope_internal fscope(engine.get(), "program_impl::pre_optimize_graph");
     // trim to outputs
     apply_opt_pass<trim_to_outputs>();  // ToDo remove hidden dependencies from trimm pass
 
@@ -466,6 +471,7 @@ void program_impl::pre_optimize_graph(bool is_internal) {
 }
 
 void program_impl::post_optimize_graph(bool is_internal) {
+    logger_scope_internal fscope(engine.get(), "program_impl::post_optimize_graph");
     // input reorder for fully connected if necessary
     apply_opt_pass<post_input_reorder>();
 
@@ -583,6 +589,7 @@ program_impl::nodes_ordering& program_impl::get_processing_order() { return proc
 const program_impl::nodes_ordering& program_impl::get_processing_order() const { return processing_order; }
 
 void program_impl::prepare_memory_dependencies() {
+    logger_scope_internal fscope(engine.get(), "program_impl::prepare_memory_dependencies");
     if (!get_engine().configuration().enable_memory_pool)
         return;
 
