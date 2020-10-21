@@ -156,8 +156,5 @@ bool op::v0::PriorBoxClustered::evaluate(const HostTensorVector& outputs,
                                          const HostTensorVector& inputs) const
 {
     OV_ITT_SCOPED_TASK(itt::domains::nGraphOp, "op::v0::PriorBoxClustered::evaluate");
-    return false;
-    // Todo (itikhono): enable the use of the reference implementation after supporting constants as
-    // outputs in plugins
-    // return evaluate_prior_box(inputs[0], inputs[1], outputs[0], get_attrs());
+    return prior_box_clustered::evaluate_prior_box(inputs[0], inputs[1], outputs[0], get_attrs());
 }
