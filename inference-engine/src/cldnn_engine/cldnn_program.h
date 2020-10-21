@@ -271,6 +271,7 @@ private:
     void CreateCTCGreedyDecoderOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateInterpolateOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateReverseSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateScatterUpdateOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
 
     // RNN
     void CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
