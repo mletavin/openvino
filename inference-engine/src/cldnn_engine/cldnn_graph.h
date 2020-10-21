@@ -16,17 +16,10 @@
 #include <utility>
 #include "ie_blob.h"
 #include "cpp/ie_cnn_network.h"
-#include "debug_options.h"
+
 #include <api/network.hpp>
-#include <api/memory.hpp>
-#include <api/primitive.hpp>
 #include <api/topology.hpp>
-#include <api/pooling.hpp>
-#include <api/eltwise.hpp>
-#include <api/concatenation.hpp>
-#include <api/detection_output.hpp>
-#include <api/softmax.hpp>
-#include <api/resample.hpp>
+
 #include <cpp_interfaces/impl/ie_executable_network_thread_safe_default.hpp>
 #include "cldnn_custom_layer.h"
 #include "cldnn_config.h"
@@ -44,10 +37,6 @@ public:
     InferenceEngine::CNNNetwork GetExecGraphInfo();
 
     bool IsLoaded() const;
-
-    static bool IsLayerSupported(const std::string& type) {
-        return Program::LayerTypeFromStr(type) != Program::NO_TYPE;
-    }
 
     void GetPerformanceCounts(std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>& perfMap) const;
     void UpdatePerfStatistics();

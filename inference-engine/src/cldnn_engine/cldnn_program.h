@@ -6,64 +6,49 @@
 
 #include <vector>
 #include <map>
-#include <set>
 #include <memory>
 #include <string>
-#include <utility>
-#include <algorithm>
+#include <cstdint>
 
-#include <cpp/ie_cnn_network.h>
-#include <legacy/ie_layers.h>
-#include <cpp_interfaces/exception2status.hpp>
-#include <ie_blob.h>
+#include <ie_icnn_network.hpp>
+#include "details/ie_exception.hpp"
 
-#include "debug_options.h"
-#include "cldnn_custom_layer.h"
 #include "cldnn_config.h"
 
 #include <api/engine.hpp>
-#include <api/memory.hpp>
 #include <api/topology.hpp>
-#include <api/primitive.hpp>
-#include <api/softmax.hpp>
-#include <api/resample.hpp>
-#include <api/pooling.hpp>
-#include <api/eltwise.hpp>
-#include <api/concatenation.hpp>
-#include <api/detection_output.hpp>
+
+#include "ngraph/ngraph.hpp"
+
+#define INVALID_OP_MESSAGE std::string("Invalid ngraph Node type passed into ") + __PRETTY_FUNCTION__
+
+// Forward declarations for cldnn primitive parameters
+namespace cldnn {
+enum class activation_func;
+struct activation_additional_params;
+enum class reduce_mode : uint16_t;
+enum class eltwise_mode : int32_t;
+}  // namespace cldnn
 
 namespace CLDNNPlugin {
-template<typename LayerTypePtr>
-LayerTypePtr tryAs(const InferenceEngine::CNNLayerPtr& in_ptr) {
-    return dynamic_cast<LayerTypePtr>(in_ptr.get());
-}
 
-template<typename LayerTypePtr>
-LayerTypePtr as(const InferenceEngine::CNNLayerPtr& in_ptr) {
-    auto result_ptr = dynamic_cast<LayerTypePtr> (in_ptr.get());
-    if (nullptr == result_ptr) {
-        THROW_IE_EXCEPTION << "CNNLayerPtr is not suitable for casting to requested layer type";
-    }
-    return result_ptr;
-}
-
-inline std::string layer_type_lower(const InferenceEngine::CNNLayer* layer) {
-    std::string layerType = layer->type;
+inline std::string layer_type_lower(const ngraph::Node* op) {
+    std::string layerType = op->get_type_name();
     std::transform(layerType.begin(), layerType.end(), layerType.begin(),
         [](unsigned char c) -> unsigned char { return std::tolower(c); });
     return layerType;
 }
 
-inline std::string layer_type_name_ID(const InferenceEngine::CNNLayer* layer) {
-    return layer_type_lower(layer) + ":" + layer->name;
+inline std::string layer_type_name_ID(const ngraph::Node* op) {
+    return layer_type_lower(op) + ":" + op->get_friendly_name();
 }
 
-inline std::string layer_type_lower(InferenceEngine::CNNLayerPtr layer) {
-    return layer_type_lower(layer.get());
+inline std::string layer_type_lower(const std::shared_ptr<ngraph::Node>& op) {
+    return layer_type_lower(op.get());
 }
 
-inline std::string layer_type_name_ID(InferenceEngine::CNNLayerPtr layer) {
-    return layer_type_name_ID(layer.get());
+inline std::string layer_type_name_ID(const std::shared_ptr<ngraph::Node>& op) {
+    return layer_type_name_ID(op.get());
 }
 
 struct PerfCounter {
@@ -85,7 +70,8 @@ public:
 
 class Program {
 public:
-    Program(InferenceEngine::ICNNNetwork &network, std::shared_ptr<const cldnn::engine> engine, const Config& config);
+    Program(InferenceEngine::ICNNNetwork& network, std::shared_ptr<const cldnn::engine> engine, const Config& config);
+    Program() : m_config({}), m_engine(nullptr), m_curBatch(-1), queryMode(false) {}
     std::shared_ptr<cldnn::program> getCompiledProgram(int program_id = 0);
 
     std::map<std::string, cldnn::primitive_id> primitiveIDs;
@@ -103,296 +89,218 @@ public:
     int m_max_batch;
     int m_curBatch;
 
-    InferenceEngine::OutputsDataMap p_currentOutputs;
-
-    std::vector<cldnn::primitive_id> GetPrevLayersPrimitives(const InferenceEngine::CNNLayerPtr layer) const;
     const std::map<std::string, cldnn::layout>& getInputLayouts() const { return inputLayouts; }
     int GetMaxBatchSizeForSingleProgram();
 
-    void AddPrimitiveToProfiler(cldnn::primitive_id id, const InferenceEngine::CNNLayerPtr &layer,
-                                cldnn::primitive_id customOutputId = "");
-
-    void AddInnerPrimitiveToProfiler(cldnn::primitive_id id, cldnn::primitive_id parentId,
-                                     const InferenceEngine::CNNLayerPtr &layer);
-
-    // internal types
-    enum LayerType {
-        Convolution,
-        DeformableConvolution,
-        ReLU,
-        ReLU6,
-        Sigmoid,
-        TanH,
-        ELU,
-        Activation,
-        Exp,
-        Asin,
-        Atan,
-        Acos,
-        Abs,
-        Asinh,
-        Acosh,
-        Atanh,
-        Not,
-        LRN,
-        Pooling,
-        FullyConnected,
-        SoftMax,
-        Power,
-        Split,
-        VariadicSplit,
-        Concatenate,
-        Eltwise,
-        SimplerNMS,
-        ROIPooling,
-        Crop,
-        Deconvolution,
-        PriorBox,
-        DetectionOutput,
-        Normalize,
-        Reshape,
-        Transpose,
-        Permute,
-        Flatten,
-        BatchNormalization,
-        PReLU,
-        ScaleShift,
-        Proposal,
-        PSROIPooling,
-        Clamp,
-        Copy,
-        Resample,
-        Interp,
-        Interpolate,
-        RegionYolo,
-        ReorgYolo,
-        ConstantBlob,
-        ArgMax,
-        ArgMin,
-        MVN,
-        Unpooling,
-        Tile,
-        Pad,
-        LSTMCell,
-        RNN,
-        Gather,
-        DepthToSpace,
-        SpaceToDepth,
-        BatchToSpace,
-        SpaceToBatch,
-        ShuffleChannels,
-        StridedSlice,
-        Broadcast,
-        ReverseSequence,
-        BinaryConvolution,
-        Quantize,
-        Squeeze,
-        Unsqueeze,
-        Reduce,
-        TopK,
-        Floor,
-        Ceil,
-        Ceiling,
-        Erf,
-        HardSigmoid,
-        HSigmoid,
-        Log,
-        Neg,
-        Reciprocal,
-        Selu,
-        Sign,
-        SoftPlus,
-        SoftSign,
-        Swish,
-        HSwish,
-        Mish,
-        Gelu,
-        Sin,
-        Sinh,
-        Cos,
-        Cosh,
-        Tan,
-        Gemm,
-        OneHot,
-        Convert,
-        ConvertLike,
-        GatherTree,
-        ExperimentalDetectronROIFeatureExtractor,
-        NonMaxSuppression,
-        Select,
-        GRN,
-        CTCGreedyDecoder,
-        PriorBoxClustered,
-        CumSum,
-        Round,
-        EmbeddingBagPackedSum,
-        EmbeddingBagOffsetsSum,
-        EmbeddingSegmentsSum,
-        ExtractImagePatches,
-        NO_TYPE
-    };
-    using GenericBlobMap = std::map<cldnn::primitive_id, cldnn::primitive_id>;
-
-    static LayerType LayerTypeFromStr(const std::string& str);
+    bool IsOpSupported(const InferenceEngine::ICNNNetwork& network, const std::shared_ptr<ngraph::Node>& op);
 
 private:
     std::vector<std::shared_ptr<cldnn::program>> m_programs;
     std::shared_ptr<const cldnn::engine> m_engine;
     Config m_config;
 
-    std::shared_ptr<cldnn::program> BuildProgram(InferenceEngine::ICNNNetwork &network);
+    bool queryMode;
 
+    static const cldnn::primitive_id m_preProcessTag;
+    static const cldnn::primitive_id m_meanValuesTag;
+    static const cldnn::primitive_id m_workaroundTag;
+    static const cldnn::primitive_id m_preCustomLayerTag;
+    static const cldnn::primitive_id m_postCustomLayerTag;
+
+    void EnableQueryMode() { queryMode = true; }
+    void DisableQueryMode() { queryMode = false; }
+
+    std::shared_ptr<cldnn::program> BuildProgram(std::vector<std::shared_ptr<ngraph::Node>> ops,
+                                                 InferenceEngine::InputsDataMap networkInputs,
+                                                 InferenceEngine::OutputsDataMap networkOutputs);
+
+    // Profiling utils
     void InitProfileInfo(const std::string& layerName,
                          const std::string& layerType,
                          bool isCPU = false,
                          InferenceEngine::InferenceEngineProfileInfo::LayerStatus status
                          = InferenceEngine::InferenceEngineProfileInfo::EXECUTED,
                          std::string parentId = "");
+    void AddPrimitiveToProfiler(cldnn::primitive_id id, const std::shared_ptr<ngraph::Node>& op,
+                                cldnn::primitive_id customOutputId = "");
+    void AddPrimitiveToProfiler(const std::shared_ptr<ngraph::Node>& op,
+                                cldnn::primitive_id customOutputId = "");
+    void AddInnerPrimitiveToProfiler(cldnn::primitive_id id, cldnn::primitive_id parentId,
+                                     const std::shared_ptr<ngraph::Node>& op);
 
-    static const cldnn::primitive_id m_preProcessTag;
-    static const cldnn::primitive_id m_weightsTag;
-    static const cldnn::primitive_id m_biasesTag;
-    static const cldnn::primitive_id m_meanValuesTag;
-    static const cldnn::primitive_id m_postProcessTag;
-    static const cldnn::primitive_id m_scalesTag;
-    static const cldnn::primitive_id m_workaroundTag;
-    static const cldnn::primitive_id m_preCustomLayerTag;
-    static const cldnn::primitive_id m_postCustomLayerTag;
-
-
-    enum WeightRearrangeType {
-        BroadcastFeatures,
-        FlipDeconvDims,
-        NO_REARRANGE
-    };
-
-    cldnn::format m_defaultFormat;
-    void InitFormat(InferenceEngine::ICNNNetwork &network);
-
-    static cldnn::resample_type ResampleTypeFromString(const std::string &str);
+    // Graph construction helpers
+    void ValidateInputs(const std::shared_ptr<ngraph::Node>& op, std::vector<size_t> validInputsCount);
+    std::vector<cldnn::primitive_id> GetInputPrimitiveIDs(const std::shared_ptr<ngraph::Node>& op) const;
 
     void Load(InferenceEngine::ICNNNetwork &network);
-    static cldnn::pooling_mode PoolingModeFromIEPooling(InferenceEngine::PoolingLayer::PoolType pt, bool excludePadding = false);
-    static cldnn::eltwise_mode EltwiseModeFromIEEltwise(InferenceEngine::EltwiseLayer::eOperation op);
-    static cldnn::prior_box_code_type PriorBoxCodeFromString(const std::string& str);
-    static cldnn::softmax::dimension_t SoftmaxDimensionFromIEAxis(const InferenceEngine::SoftMaxLayer* softmaxLayer);
-    cldnn::primitive_id CreatePrimitiveFromBlob(cldnn::topology& topology,
-                                                cldnn::primitive_id primID,
-                                                const InferenceEngine::Blob::Ptr pBlob,
-                                                const cldnn::layout& blobLayout,
-                                                size_t blobByteOffset = 0,
-                                                WeightRearrangeType rearrange = NO_REARRANGE);
-    void CreateWeightAndBiasPrimitives(cldnn::topology& topology,
-                                       const InferenceEngine::CNNLayerPtr& layer,
-                                       std::vector<cldnn::primitive_id>& weightsPrimID,
-                                       std::vector<cldnn::primitive_id>& biasesPrimID);
-    void CreateBinaryWeightAndBiasPrimitives(cldnn::topology& topology,
-                                             const InferenceEngine::CNNLayerPtr& layer,
-                                             std::vector<cldnn::primitive_id>& weightsPrimID,
-                                             std::vector<cldnn::primitive_id>& biasesPrimID);
-    void CreateScaleWeightsAndBiasesFromBN(cldnn::topology& topology,
-                                           const InferenceEngine::BatchNormalizationLayer* bnLayer,
-                                           cldnn::primitive_id& weightsPrimID,
-                                           cldnn::primitive_id& biasesPrimID);
-    void AddPreProcessPrimitive(InferenceEngine::InputInfo::Ptr inputInfo);
-    void AddInputPrimitive(cldnn::topology& topology,
-                           InferenceEngine::InputInfo::Ptr inputInfo, InferenceEngine::Precision inputPrecision, const std::string inputName);
-    void AddOutputPrimitive(cldnn::topology& topology,
-                            std::string outputName, const InferenceEngine::DataPtr outputData,
-                            InferenceEngine::Precision outputPrecision = InferenceEngine::Precision::UNSPECIFIED);
-    void CreateSingleLayerPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    bool IsValidSplitConvMerge(const InferenceEngine::SplitLayer* splitLayer) const;
-    bool CanProcessDynBatch(InferenceEngine::ICNNNetwork &network) const;
-    static std::vector<InferenceEngine::CNNLayerPtr> GetNextLayers(const InferenceEngine::DataPtr data);
-    static std::vector<InferenceEngine::CNNLayerPtr> GetNextLayers(const InferenceEngine::CNNLayerPtr layer);
-    static InferenceEngine::CNNLayerPtr GetNextSingleLayer(const InferenceEngine::DataPtr data);
-    static InferenceEngine::CNNLayerPtr GetNextSingleLayer(const InferenceEngine::CNNLayerPtr layer);
-    void AddSingleValuePrimitive(cldnn::topology& topology, cldnn::primitive_id valPrimID, cldnn::data_types dataType, float value);
-
-    GenericBlobMap CreateGenericLayerBlobPrimitives(cldnn::topology& topology, const InferenceEngine::GenericLayer* layer);
-    static void ValidateGenericLayerBlobs(const InferenceEngine::GenericLayer* layer, const std::vector<std::string>& blobNames);
-    static bool HasParam(const std::map<std::string, std::string>& layerParams, std::string paramName) {
-        auto p = layerParams.find(paramName);
-        return p != layerParams.end();
-    }
-
+    void CreateSingleLayerPrimitive(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& op,
+                                    InferenceEngine::InputsDataMap networkInputs,
+                                    InferenceEngine::OutputsDataMap networkOutputs);
+    bool CanProcessDynBatch(std::vector<std::shared_ptr<ngraph::Node>> ops, InferenceEngine::InputsDataMap networkInputs) const;
     void changeInputBatch(int batch);
 
-    // Layer Primitive Creators
-    void CreatePReLUPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateBatchNormalizationPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr & layer);
-    void CreateFlattenPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePermutePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateReshapePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateNormalizePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateDetectionOutputPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePriorBoxPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateDeconvolutionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateCropPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateROIPoolingPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSimplerNMSPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateEltwisePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateConcatenatePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSplitPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateFusedSplitConvMergePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer, bool useGroups = true);
-    void CreatePowerPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSoftMaxPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateFullyConnectedPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePoolingPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateLRNPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateActivationPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer, const LayerType type);
-    void CreateConvolutionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateDeformableConvolutionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateScaleShiftPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateProposalPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePSROIPoolingPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateCopyPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateResamplePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateInterpPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateInterpolatePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateYOLO2RegionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateYOLO2ReorgPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateArgMaxMinPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer, const LayerType type);
-    void CreateTopKPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateMaxUnpoolingPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateMVNPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateTilePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePadPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateRegularLSTM(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateDynamicLSTM(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateRNNPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateLSTMCellPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void AddConstantBlobInput(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateCustomLayerPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer, CLDNNCustomLayerPtr customLayer);
-    void CreateGatherPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateDepthToSpacePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSpaceToDepthPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateBatchToSpacePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSpaceToBatchPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateShuffleChannelsPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateStridedSlicePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateBroadcastPrimitive(cldnn::topology &topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateReverseSequencePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateBinaryConvolutionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateQuantizePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateGemmPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateReducePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateOneHotPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateGatherTreePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateConvertPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateConvertLikePrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreatePyramidRoIAlignPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateNonMaxSuppressionPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
-    void CreateSelectPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateGRNPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateCTCGreedyDecoderPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreatePriorBoxClusteredPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateCumSumPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateRoundPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateEmbeddingBagPackedSumPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateEmbeddingBagOffsetsSumPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateEmbeddingSegmentsSumPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr& layer);
-    void CreateExtractImagePatchesPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer);
+    // Creators for ngraph ops
+    void CreateParameterOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, InferenceEngine::InputsDataMap networkInputs);
+    void CreateResultOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, InferenceEngine::OutputsDataMap networkOutputs);
+
+    void CreateConstantOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    void CreateConvolutionOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGroupConvolutionOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateConvolutionBackpropDataOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGroupConvolutionBackpropDataOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDeformableConvolutionOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateBinaryConvolutionOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Pooling
+    void CreateMaxPoolOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAvgPoolOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Activations
+    void CreateActivationOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node,
+                            cldnn::activation_func func, cldnn::activation_additional_params params);
+
+    void CreateTanhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateEluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePReluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateClampOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateExpOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAsinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAsinhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAcosOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAcoshOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAtanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAtanhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateAbsOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateFloorOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateCeilingOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSqrtOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateErfOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateHardSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLogOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateNegativeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSeluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSoftPlusOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateTanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSinhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateCosOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateCoshOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSwishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateHSwishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGeluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSignOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateHSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Reduction
+    void CreateReduceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, cldnn::reduce_mode mode, bool keep_dims);
+    void CreateReduceLogicalAndOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceLogicalOrOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceMeanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceMinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceMaxOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceProdOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceSumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceL1Op(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReduceL2Op(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Element-wise
+    void CreateElementwiseOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, cldnn::eltwise_mode mode);
+    void CreateAddOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMultiplyOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMaximumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMinimumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSubtractOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDivideOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSquaredDifferenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateEqualOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateNotEqualOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLessOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLessEqualOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGreaterOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGreaterEqualOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLogicalNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLogicalAndOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLogicalOrOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLogicalXorOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePowerOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateFloorModOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Reshape
+    void CreateCommonReshapeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReshapeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSqueezeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateUnsqueezeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    void CreateBatchToSpaceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSpaceToBatchOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSpaceToDepthOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDepthToSpaceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateCumSumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateExtractImagePatchesOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateEmbeddingBagOffsetsSumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateEmbeddingBagPackedSumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateEmbeddingSegmentsSumOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSoftmaxOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateProposalOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateFakeQuantizeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGatherOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGatherTreeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateTransposeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePriorBoxOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePriorBoxClusteredOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePriorBoxClusteredIEOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMatMulOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateTopKOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateShuffleChannelsOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDetectionOutputOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateConcatOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateROIPoolingOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePSROIPoolingOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDeformablePSROIPoolingOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateStridedSliceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateTileOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreatePadOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateOneHotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateNonMaxSuppressionOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSelectOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateCTCGreedyDecoderOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateInterpolateOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReverseSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // RNN
+    void CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Broadcast
+    void CreateCommonBroadcastOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateBroadcastOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Split
+    void CreateCommonSplitOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateSplitOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateVariadicSplitOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Convert
+    void CreateConvertOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateConvertLikeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Normalization
+    void CreateNormalizeL2Op(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateMVNOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateGRNOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateLRNOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Yolo
+    void CreateRegionYoloOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateReorgYoloOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+
+    // Custom
+    void CreateCustomOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, CLDNNCustomLayerPtr customLayer);
 };
 
 }  // namespace CLDNNPlugin

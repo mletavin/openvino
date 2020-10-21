@@ -11,7 +11,7 @@ if (LINUX)
     endif()
 endif()
 
-file(GLOB MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file(GLOB MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/ops/*.cpp)
 file(GLOB LIBRARY_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 
 addVersionDefines(cldnn_engine.cpp CI_BUILD_NUMBER CLDNN_VERSION)
@@ -34,7 +34,10 @@ endif()
 set(CLDNN_TOP_FOLDER "${IE_MAIN_SOURCE_DIR}/thirdparty/clDNN")
 target_include_directories(${TARGET_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        $<TARGET_PROPERTY:inference_engine_plugin_api,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:inference_engine_transformations,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:ngraph::ngraph,INTERFACE_INCLUDE_DIRECTORIES>
+        ${IE_MAIN_SOURCE_DIR}/src/inference_engine
         ${CLDNN__IOCL_ICD_INCDIRS}
         ${CLDNN_TOP_FOLDER})
 
