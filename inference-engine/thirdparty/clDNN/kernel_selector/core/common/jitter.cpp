@@ -479,8 +479,12 @@ class WeightTensorJitConstant : public TensorBaseTJitConstant<WeightsType, Weigh
             const auto layout_name = toString(l);
             using args = std::initializer_list<std::string>;
             if (l == WeightsLayout::oiyx ||
+                l == WeightsLayout::ioyx ||
+                l == WeightsLayout::iozyx ||
                 l == WeightsLayout::oizyx ||
                 l == WeightsLayout::goiyx ||
+                l == WeightsLayout::gioyx ||
+                l == WeightsLayout::giozyx ||
                 l == WeightsLayout::goizyx) {
                 args macroNameArgs = {"prefix", "g", "o", "i", "z", "y", "x"};
                 this->calcFunction = FuncBody(layout_name);
@@ -738,7 +742,7 @@ JitDefinitions WeightTensorJitConstant::GetDefinitions() const {
             bool is_grouped_4d_layout = is_common_nd_layout(grouped_4d_channels, layout);
             if (is_grouped_4d_layout) {
                 index_macro_name = _name + "_GET_INDEX(g, o, i, y, x)";
-                if (layout == WeightsLayout::goiyx)
+                if (layout == WeightsLayout::goiyx || layout == WeightsLayout::gioyx)
                     index_func_val = called_func_name + "(" + _name + ", g, o, i, 0, y, x)";
                 else if (layout == WeightsLayout::g_os_is_yx_isv16_osv16)
                     index_func_val = called_func_name + "(" + _name + ", g, o, i, 0, y, x, 16)";
@@ -761,7 +765,7 @@ JitDefinitions WeightTensorJitConstant::GetDefinitions() const {
             bool is_grouped_5d_layout = is_common_nd_layout(grouped_5d_channels, layout);
             if (is_grouped_5d_layout) {
                 index_macro_name = _name + "_GET_INDEX(g, o, i, z, y, x)";
-                if (layout == WeightsLayout::goizyx)
+                if (layout == WeightsLayout::goizyx || layout == WeightsLayout::giozyx)
                     index_func_val = called_func_name + "(" + _name + ", g, o, i, z, y, x)";
                 else if (layout == WeightsLayout::g_os_is_zyx_isv16_osv16)
                     index_func_val = called_func_name + "(" + _name + ", g, o, i, z, y, x, 16)";
@@ -782,7 +786,7 @@ JitDefinitions WeightTensorJitConstant::GetDefinitions() const {
             bool is_common_4d_layout = is_common_nd_layout(base_4d_channels, layout);
             if (is_common_4d_layout) {
                 index_macro_name = _name + "_GET_INDEX(o, i, y, x)";
-                if (layout == WeightsLayout::oiyx)
+                if (layout == WeightsLayout::oiyx || layout == WeightsLayout::ioyx)
                     index_func_val = called_func_name + "(" + _name + ", 0, o, i, 0, y, x)";
                 else if (layout == WeightsLayout::os_is_yx_isv16_osv16)
                     index_func_val = called_func_name + "(" + _name + ", 0, o, i, 0, y, x, 16)";
@@ -808,7 +812,7 @@ JitDefinitions WeightTensorJitConstant::GetDefinitions() const {
             bool is_common_5d_layout = is_common_nd_layout(base_5d_channels, layout);
             if (is_common_5d_layout) {
                 index_macro_name = _name + "_GET_INDEX(o, i, z, y, x)";
-                if (layout == WeightsLayout::oizyx)
+                if (layout == WeightsLayout::oizyx || layout == WeightsLayout::iozyx)
                     index_func_val = called_func_name + "(" + _name + ", 0, o, i, z, y, x)";
                 else if (layout == WeightsLayout::os_is_zyx_isv16_osv16)
                     index_func_val = called_func_name + "(" + _name + ", 0, o, i, z, y, x, 16)";
