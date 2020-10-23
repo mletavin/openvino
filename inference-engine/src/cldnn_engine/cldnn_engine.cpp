@@ -29,7 +29,6 @@
 #include <transformations/control_flow/unroll_tensor_iterator.hpp>
 
 #include <transformations/common_optimizations/common_optimizations.hpp>
-#include <transformations/common_optimizations/depth_to_space_fusion.hpp>
 #include <transformations/op_conversions/convert_depth_to_space.hpp>
 #include <transformations/op_conversions/convert_space_to_depth.hpp>
 #include <transformations/op_conversions/convert_gelu.hpp>
@@ -42,6 +41,7 @@
 #include <transformations/op_conversions/convert_reduce_to_pooling.hpp>
 #include <transformations/op_conversions/convert_shuffle_channels3.hpp>
 #include <transformations/op_conversions/hswish_decomposition.hpp>
+#include <transformations/op_conversions/hsigmoid_decomposition.hpp>
 #include <transformations/op_conversions/gru_cell_decomposition.hpp>
 #include <transformations/op_conversions/lstm_cell_decomposition.hpp>
 #include <transformations/op_conversions/rnn_cell_decomposition.hpp>
@@ -168,6 +168,7 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
         pass_config->disable<ngraph::pass::ConvertGELU>();
         pass_config->disable<ngraph::pass::ConvertShuffleChannels3>();
         pass_config->disable<ngraph::pass::HSwishDecomposition>();
+        pass_config->disable<ngraph::pass::HSigmoidDecomposition>();
         pass_config->disable<ngraph::pass::ReduceL1Decomposition>();
         pass_config->disable<ngraph::pass::ReduceL2Decomposition>();
         pass_config->disable<ngraph::pass::SoftPlusDecomposition>();
