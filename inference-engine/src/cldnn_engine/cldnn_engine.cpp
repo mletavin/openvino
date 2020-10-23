@@ -19,6 +19,7 @@
 #include <ngraph/opsets/opset2.hpp>
 #include <ngraph/opsets/opset3.hpp>
 #include <ngraph/opsets/opset4.hpp>
+#include <ngraph/opsets/opset5.hpp>
 #include <ngraph/pass/manager.hpp>
 #include <generic_ie.hpp>
 
@@ -47,6 +48,9 @@
 #include <transformations/convert_precision.hpp>
 #include <transformations/init_node_info.hpp>
 #include <transformations/rt_info/fused_names_attribute.hpp>
+
+#include <transformations/low_precision/transformer.hpp>
+#include <transformations/low_precision/mat_mul.hpp>
 
 #include "cldnn_engine.h"
 #include "cldnn_executable_network.h"
@@ -91,7 +95,7 @@ static bool disableReduceDecomposition(const std::shared_ptr<const ngraph::Node>
     return false;
 }
 
-InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const InferenceEngine::ICNNNetwork& network) const {
+InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const InferenceEngine::ICNNNetwork& network, const CLDNNPlugin::Config& config) const {
     std::shared_ptr<ICNNNetwork> clonedNetwork = std::make_shared<CNNNetworkNGraphImpl>(network);
     if (clonedNetwork->getFunction()) {
         auto nGraphFunc = clonedNetwork->getFunction();
@@ -162,7 +166,6 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
 
         // List of enabled/disabled transformations
         pass_config->disable<ngraph::pass::ConvertGELU>();
-        pass_config->disable<ngraph::pass::ConvertExtractImagePatchesToReorgYolo>();
         pass_config->disable<ngraph::pass::ConvertShuffleChannels3>();
         pass_config->disable<ngraph::pass::HSwishDecomposition>();
         pass_config->disable<ngraph::pass::ReduceL1Decomposition>();
@@ -171,8 +174,9 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
 
         manager.run_passes(nGraphFunc);
 
-        enableInt8 = config.enableInt8 && ngraph::pass::low_precision::LowPrecisionTransformer::isFunctionQuantized(nGraphFunc);
+        bool enableInt8 = config.enableInt8 && ngraph::pass::low_precision::LowPrecisionTransformer::isFunctionQuantized(nGraphFunc);
         if (enableInt8) {
+            using namespace ngraph::pass::low_precision;
             ngraph::pass::Manager conversion_manager;
             // [WA part1] Convert quantized FP16 model to FP32 to avoid possible overflow and mixed precision errors
             conversion_manager.register_pass<ngraph::pass::ConvertPrecision>(ngraph::element::f16, ngraph::element::f32);
@@ -297,7 +301,7 @@ ExecutableNetworkInternal::Ptr clDNNEngine::LoadExeNetworkImpl(const InferenceEn
 
     context = m_defaultContext;
 
-    return std::make_shared<CLDNNExecNetwork>(*CloneAndTransformNetwork(network), context, conf);
+    return std::make_shared<CLDNNExecNetwork>(*CloneAndTransformNetwork(network, conf), context, conf);
 }
 
 ExecutableNetworkInternal::Ptr clDNNEngine::LoadExeNetworkImpl(const InferenceEngine::ICNNNetwork &network,
@@ -321,7 +325,7 @@ ExecutableNetworkInternal::Ptr clDNNEngine::LoadExeNetworkImpl(const InferenceEn
         conf.max_dynamic_batch = static_cast<int>(network.getBatchSize());
     }
 
-    return std::make_shared<CLDNNExecNetwork>(*CloneAndTransformNetwork(network), casted, conf);
+    return std::make_shared<CLDNNExecNetwork>(*CloneAndTransformNetwork(network, conf), casted, conf);
 }
 
 RemoteContext::Ptr clDNNEngine::CreateContext(const ParamMap& params) {
@@ -357,7 +361,11 @@ void clDNNEngine::SetConfig(const std::map<std::string, std::string> &config) {
 QueryNetworkResult clDNNEngine::QueryNetwork(const ICNNNetwork& network,
                                              const std::map<std::string, std::string>& config) const {
     QueryNetworkResult res;
-    GetDeviceInfo(config);      // Verify device id
+    CLDNNPlugin::Config conf = _impl->m_config;
+    auto device_info = GetDeviceInfo(config);
+    conf.enableInt8 = device_info.supports_imad || device_info.supports_immad;
+    conf.UpdateFromMap(config);
+
     Program prog;
     auto function = network.getFunction();
     if (function == nullptr) {
@@ -370,7 +378,7 @@ QueryNetworkResult clDNNEngine::QueryNetwork(const ICNNNetwork& network,
         originalOpNames.emplace(node->get_friendly_name());
     }
 
-    auto clonedNetwork = CloneAndTransformNetwork(network);
+    auto clonedNetwork = CloneAndTransformNetwork(network, conf);
     auto ops = clonedNetwork->getFunction()->get_ordered_ops();
     std::unordered_set<std::string> supported;
     std::unordered_set<std::string> unsupported;
