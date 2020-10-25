@@ -128,19 +128,13 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
 
         using const_node_ptr = const std::shared_ptr<const ngraph::Node>;
 
-        // SpaceToDepth/ DepthToSpace node implementation supports only equal input/output tensors with rank <= 5
+        // SpaceToDepth/DepthToSpace node implementation supports only equal input/output tensors with rank <= 5
         pass_config->set_callback<ngraph::pass::ConvertSpaceToDepth,
                                   ngraph::pass::ConvertDepthToSpace>(
                 [](const_node_ptr &node) -> bool {
                     return node->input_value(0).get_shape().size() <= 5lu &&
                            node->input_value(0).get_shape().size() == node->get_output_shape(0).size();
                 });
-
-        // // Disable FC reshaping for 3D case
-        // pass_config->set_callback<ngraph::pass::ReshapeFullyConnected>(
-        //         [](const_node_ptr &node) -> bool {
-        //             return node->input_value(0).get_shape().size() == 3ul;
-        //         });
 
         pass_config->set_callback<ngraph::pass::ConvertBatchToSpace,
                                   ngraph::pass::ConvertSpaceToBatch>(
