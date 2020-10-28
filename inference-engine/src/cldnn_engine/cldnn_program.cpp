@@ -353,6 +353,7 @@ void Program::CreateSingleLayerPrimitive(cldnn::topology& topology,
 
     { ngraph::op::v5::LSTMSequence::type_info, [&](){ CreateLSTMSequenceOp(topology, op); } },
     { ngraph::op::v5::HSigmoid::type_info, [&](){ CreateHSigmoidOp(topology, op); } },
+    { ngraph::op::v5::Round::type_info, [&](){ CreateRoundOp(topology, op); } },
     };
 
     InitProfileInfo(op->get_friendly_name(), op->get_type_name());

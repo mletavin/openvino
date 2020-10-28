@@ -156,9 +156,9 @@ private:
     void CreateMaxPoolOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateAvgPoolOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
 
-    // Activations
-    void CreateActivationOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node,
-                            cldnn::activation_func func, cldnn::activation_additional_params params);
+    // Unary
+    void CreateUnaryEltwiseOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node,
+                              cldnn::activation_func func, cldnn::activation_additional_params params);
 
     void CreateTanhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateEluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
@@ -195,6 +195,7 @@ private:
     void CreateGeluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateSignOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateHSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateRoundOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
 
     // Reduction
     void CreateReduceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node, cldnn::reduce_mode mode, bool keep_dims);

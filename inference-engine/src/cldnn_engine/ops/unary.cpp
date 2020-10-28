@@ -9,7 +9,7 @@
 
 namespace CLDNNPlugin {
 
-void Program::CreateActivationOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& op,
+void Program::CreateUnaryEltwiseOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& op,
                                  cldnn::activation_func func, cldnn::activation_additional_params params) {
     auto inputs = GetInputPrimitiveIDs(op);
     std::string layerName = layer_type_name_ID(op);
@@ -23,7 +23,7 @@ void Program::CreateTanhOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::hyperbolic_tan, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::hyperbolic_tan, {});
 }
 
 void Program::CreateEluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -32,7 +32,7 @@ void Program::CreateEluOp(cldnn::topology& topology, const std::shared_ptr<ngrap
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
     auto alpha = static_cast<float>(op->get_alpha());
-    CreateActivationOp(topology, op, cldnn::activation_func::elu, {alpha});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::elu, {alpha});
 }
 
 void Program::CreateSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -40,7 +40,7 @@ void Program::CreateSigmoidOp(cldnn::topology& topology, const std::shared_ptr<n
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::logistic, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::logistic, {});
 }
 
 void Program::CreateReluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -48,7 +48,7 @@ void Program::CreateReluOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::relu, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::relu, {});
 }
 
 void Program::CreatePReluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -66,7 +66,7 @@ void Program::CreatePReluOp(cldnn::topology& topology, const std::shared_ptr<ngr
         float slope;
         if (!ngraph::op::util::get_single_value(slope_node, slope))
             THROW_IE_EXCEPTION << "Unsupported parameter size in " << op->get_friendly_name() << " (" << op->get_type_name() << ")";
-        CreateActivationOp(topology, op, cldnn::activation_func::relu_negative_slope, {slope});
+        CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::relu_negative_slope, {slope});
     } else {
         auto inputs = GetInputPrimitiveIDs(op);
         std::string layerName = layer_type_name_ID(op);
@@ -83,7 +83,7 @@ void Program::CreateClampOp(cldnn::topology& topology, const std::shared_ptr<ngr
 
     float min = static_cast<float>(op->get_min());
     float max = static_cast<float>(op->get_max());
-    CreateActivationOp(topology, op, cldnn::activation_func::clamp, {min, max});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::clamp, {min, max});
 }
 
 void Program::CreateExpOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -91,7 +91,7 @@ void Program::CreateExpOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::exp, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::exp, {});
 }
 
 void Program::CreateNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -99,7 +99,7 @@ void Program::CreateNotOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::negation, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::negation, {});
 }
 
 void Program::CreateLogicalNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -107,7 +107,7 @@ void Program::CreateLogicalNotOp(cldnn::topology& topology, const std::shared_pt
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::negation, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::negation, {});
 }
 
 void Program::CreateAsinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -115,7 +115,7 @@ void Program::CreateAsinOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::asin, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::asin, {});
 }
 
 void Program::CreateAsinhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -123,7 +123,7 @@ void Program::CreateAsinhOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::asinh, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::asinh, {});
 }
 
 void Program::CreateAcosOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -131,7 +131,7 @@ void Program::CreateAcosOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::acos, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::acos, {});
 }
 
 void Program::CreateAcoshOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -139,7 +139,7 @@ void Program::CreateAcoshOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::acosh, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::acosh, {});
 }
 
 void Program::CreateAtanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -147,7 +147,7 @@ void Program::CreateAtanOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::atan, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::atan, {});
 }
 
 void Program::CreateAtanhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -155,7 +155,7 @@ void Program::CreateAtanhOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::atanh, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::atanh, {});
 }
 
 void Program::CreateAbsOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -163,7 +163,7 @@ void Program::CreateAbsOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::abs, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::abs, {});
 }
 
 void Program::CreateFloorOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -171,7 +171,7 @@ void Program::CreateFloorOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::floor, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::floor, {});
 }
 
 void Program::CreateCeilingOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -179,7 +179,7 @@ void Program::CreateCeilingOp(cldnn::topology& topology, const std::shared_ptr<n
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::ceil, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::ceil, {});
 }
 
 void Program::CreateSqrtOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -187,7 +187,7 @@ void Program::CreateSqrtOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::sqrt, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::sqrt, {});
 }
 
 void Program::CreateErfOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -195,7 +195,7 @@ void Program::CreateErfOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::erf, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::erf, {});
 }
 
 void Program::CreateHardSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -216,7 +216,7 @@ void Program::CreateHardSigmoidOp(cldnn::topology& topology, const std::shared_p
         if (!ngraph::op::util::get_single_value(alpha_node, alpha) || !ngraph::op::util::get_single_value(beta_node, beta)) {
             THROW_IE_EXCEPTION << "Unsupported parameter size in " << op->get_friendly_name() << " (" << op->get_type_name() << ")";
         }
-        CreateActivationOp(topology, op, cldnn::activation_func::hard_sigmoid, {alpha, beta});
+        CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::hard_sigmoid, {alpha, beta});
     }
 }
 
@@ -225,7 +225,7 @@ void Program::CreateLogOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::log, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::log, {});
 }
 
 void Program::CreateNegativeOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -233,7 +233,7 @@ void Program::CreateNegativeOp(cldnn::topology& topology, const std::shared_ptr<
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::negative, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::negative, {});
 }
 
 // void Program::CreateReciprocalOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -258,7 +258,7 @@ void Program::CreateSeluOp(cldnn::topology& topology, const std::shared_ptr<ngra
         if (!ngraph::op::util::get_single_value(alpha_node, alpha) || !ngraph::op::util::get_single_value(lambda_node, lambda)) {
             THROW_IE_EXCEPTION << "Unsupported parameter size in " << op->get_friendly_name() << " (" << op->get_type_name() << ")";
         }
-        CreateActivationOp(topology, op, cldnn::activation_func::selu, {alpha, lambda});
+        CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::selu, {alpha, lambda});
     }
 }
 
@@ -267,14 +267,14 @@ void Program::CreateSoftPlusOp(cldnn::topology& topology, const std::shared_ptr<
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::softplus, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::softplus, {});
 }
 
 // void Program::CreateSoftSignOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     // auto op = std::dynamic_pointer_cast<ngraph::op::v0::SoftSign>(node);
     // if (!op)
     //     THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
-    // CreateActivationOp(topology, op, cldnn::activation_func::softsign, {});
+    // CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::softsign, {});
 // }
 
 void Program::CreateTanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -282,7 +282,7 @@ void Program::CreateTanOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::tan, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::tan, {});
 }
 
 void Program::CreateSinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -290,7 +290,7 @@ void Program::CreateSinOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::sin, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::sin, {});
 }
 
 void Program::CreateSinhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -298,7 +298,7 @@ void Program::CreateSinhOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::sinh, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::sinh, {});
 }
 
 void Program::CreateCosOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -306,7 +306,7 @@ void Program::CreateCosOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::cos, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::cos, {});
 }
 
 void Program::CreateCoshOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -314,7 +314,7 @@ void Program::CreateCoshOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::cosh, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::cosh, {});
 }
 
 void Program::CreateSwishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -322,7 +322,7 @@ void Program::CreateSwishOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::swish, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::swish, {});
 }
 
 void Program::CreateHSwishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -330,7 +330,7 @@ void Program::CreateHSwishOp(cldnn::topology& topology, const std::shared_ptr<ng
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::hswish, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::hswish, {});
 }
 
 void Program::CreateMishOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -338,7 +338,7 @@ void Program::CreateMishOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::mish, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::mish, {});
 }
 
 void Program::CreateGeluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -346,7 +346,7 @@ void Program::CreateGeluOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::gelu, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::gelu, {});
 }
 
 void Program::CreateSignOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -354,7 +354,7 @@ void Program::CreateSignOp(cldnn::topology& topology, const std::shared_ptr<ngra
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::sign, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::sign, {});
 }
 
 void Program::CreateHSigmoidOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -362,7 +362,21 @@ void Program::CreateHSigmoidOp(cldnn::topology& topology, const std::shared_ptr<
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
-    CreateActivationOp(topology, op, cldnn::activation_func::hsigmoid, {});
+    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::hsigmoid, {});
+}
+
+void Program::CreateRoundOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
+    auto op = std::dynamic_pointer_cast<ngraph::op::v5::Round>(node);
+    if (!op)
+        THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
+
+    auto func = cldnn::activation_func::none;
+    switch (op->get_mode()) {
+        case ngraph::op::v5::Round::RoundMode::HALF_TO_EVEN : func = cldnn::activation_func::round_half_to_even; break;
+        case ngraph::op::v5::Round::RoundMode::HALF_AWAY_FROM_ZERO : func = cldnn::activation_func::round_half_away_from_zero; break;
+        default: THROW_IE_EXCEPTION << "Unsupported round mode in " << op->get_friendly_name() << ": " << static_cast<int>(op->get_mode());
+    }
+    CreateUnaryEltwiseOp(topology, op, func, {});
 }
 
 }  // namespace CLDNNPlugin

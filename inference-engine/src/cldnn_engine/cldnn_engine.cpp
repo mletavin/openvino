@@ -49,8 +49,8 @@
 #include <transformations/init_node_info.hpp>
 #include <transformations/rt_info/fused_names_attribute.hpp>
 
-#include <transformations/low_precision/transformer.hpp>
-#include <transformations/low_precision/mat_mul.hpp>
+#include <low_precision/transformer.hpp>
+#include <low_precision/mat_mul.hpp>
 
 #include "cldnn_engine.h"
 #include "cldnn_executable_network.h"
