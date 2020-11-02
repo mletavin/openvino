@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/cum_sum.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/cum_sum.hpp"
 
 namespace CLDNNPlugin {

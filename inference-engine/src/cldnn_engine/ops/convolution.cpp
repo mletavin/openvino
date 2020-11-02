@@ -5,6 +5,12 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/convolution.hpp"
+#include "ngraph/op/binary_convolution.hpp"
+#include "ngraph/op/deformable_convolution.hpp"
+#include "ngraph/op/group_conv.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/convolution.hpp"
 #include "api/deconvolution.hpp"
 #include "api/binary_convolution.hpp"

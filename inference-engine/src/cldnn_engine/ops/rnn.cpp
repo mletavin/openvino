@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/lstm_cell.hpp"
+#include "ngraph/op/lstm_sequence.hpp"
+
 #include "api/reshape.hpp"
 #include "api/reorder.hpp"
 #include "api/fully_connected.hpp"

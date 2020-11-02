@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/reverse_sequence.hpp"
+
 #include "api/reverse_sequence.hpp"
 
 namespace CLDNNPlugin {

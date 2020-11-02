@@ -5,6 +5,10 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/roi_pooling.hpp"
+#include "ngraph/op/psroi_pooling.hpp"
+#include "ngraph/op/deformable_psroi_pooling.hpp"
+
 #include "api/roi_pooling.hpp"
 
 namespace CLDNNPlugin {

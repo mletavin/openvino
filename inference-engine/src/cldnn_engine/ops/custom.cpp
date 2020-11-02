@@ -6,6 +6,9 @@
 #include "cldnn_common_utils.h"
 #include "simple_math.h"
 
+#include "ngraph/attribute_visitor.hpp"
+#include "ngraph/node.hpp"
+
 #include "api/custom_gpu_primitive.hpp"
 #include "api/reorder.hpp"
 

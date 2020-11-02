@@ -5,6 +5,10 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/matmul.hpp"
+#include "ngraph/op/constant.hpp"
+#include "ngraph/op/fake_quantize.hpp"
+
 #include "api/gemm.hpp"
 #include "api/fully_connected.hpp"
 #include "api/reshape.hpp"

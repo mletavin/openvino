@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/space_to_depth.hpp"
+
 #include "api/space_to_depth.hpp"
 
 namespace CLDNNPlugin {

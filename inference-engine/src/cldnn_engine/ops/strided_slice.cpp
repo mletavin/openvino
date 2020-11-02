@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/strided_slice.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/strided_slice.hpp"
 #include "api/reshape.hpp"
 #include "api/crop.hpp"

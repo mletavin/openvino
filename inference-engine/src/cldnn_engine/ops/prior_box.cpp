@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/prior_box.hpp"
+#include "ngraph/op/prior_box_clustered.hpp"
+
 #include "api/prior_box.hpp"
 
 namespace CLDNNPlugin {

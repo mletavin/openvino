@@ -5,6 +5,10 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/embedding_segments_sum.hpp"
+#include "ngraph/op/embeddingbag_offsets_sum.hpp"
+#include "ngraph/op/embeddingbag_packedsum.hpp"
+
 #include "api/embedding_bag.hpp"
 #include "api/reorder.hpp"
 

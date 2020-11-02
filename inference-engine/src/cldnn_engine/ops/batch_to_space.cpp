@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/batch_to_space.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/batch_to_space.hpp"
 
 namespace CLDNNPlugin {

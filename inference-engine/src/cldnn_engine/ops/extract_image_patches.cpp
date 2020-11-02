@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/extractimagepatches.hpp"
+
 #include "api/extract_image_patches.hpp"
 
 namespace CLDNNPlugin {

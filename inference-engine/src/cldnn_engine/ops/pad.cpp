@@ -4,8 +4,9 @@
 
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
-
 #include "transformations/utils/utils.hpp"
+
+#include "ngraph/op/pad.hpp"
 
 #include "api/border.hpp"
 

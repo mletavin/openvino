@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/topk.hpp"
+
 #include "api/arg_max_min.hpp"
 #include "api/mutable_data.hpp"
 

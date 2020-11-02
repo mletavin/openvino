@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/gather_tree.hpp"
+
 #include "api/gather_tree.hpp"
 #include "api/reorder.hpp"
 

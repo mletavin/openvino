@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/non_max_suppression.hpp"
+
 #include "api/reorder.hpp"
 #include "api/non_max_suppression.hpp"
 

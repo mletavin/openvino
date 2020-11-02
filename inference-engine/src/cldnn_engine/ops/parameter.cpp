@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/parameter.hpp"
+
 #include "api/input_layout.hpp"
 #include "api/reorder.hpp"
 #include "api/data.hpp"

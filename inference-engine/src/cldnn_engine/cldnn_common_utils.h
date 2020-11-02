@@ -9,7 +9,7 @@
 #include <cpp_interfaces/exception2status.hpp>
 #include <api/layout.hpp>
 
-#include "ngraph/ngraph.hpp"
+#include "ngraph/type/element_type.hpp"
 
 using namespace InferenceEngine;
 using namespace InferenceEngine::details;

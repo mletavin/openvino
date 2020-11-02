@@ -4,6 +4,9 @@
 
 #include "cldnn_program.h"
 
+#include "ngraph/op/transpose.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/permute.hpp"
 
 namespace CLDNNPlugin {

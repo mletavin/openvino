@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/proposal.hpp"
+
 #include "api/proposal.hpp"
 #include "api/mutable_data.hpp"
 

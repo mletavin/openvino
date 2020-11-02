@@ -5,6 +5,18 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/constant.hpp"
+#include "ngraph/op/convolution.hpp"
+#include "ngraph/op/binary_convolution.hpp"
+#include "ngraph/op/deformable_convolution.hpp"
+#include "ngraph/op/group_conv.hpp"
+#include "ngraph/op/concat.hpp"
+#include "ngraph/op/squared_difference.hpp"
+#include "ngraph/op/gather.hpp"
+#include "ngraph/op/split.hpp"
+#include "ngraph/op/variadic_split.hpp"
+#include "ngraph/op/util/op_types.hpp"
+
 #include "api/data.hpp"
 
 using namespace InferenceEngine;

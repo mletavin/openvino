@@ -3,6 +3,7 @@
 //
 
 #include "cldnn_program.h"
+#include "ngraph/ops.hpp"
 
 using namespace InferenceEngine;
 using namespace InferenceEngine::details;
@@ -17,6 +18,25 @@ const cldnn::primitive_id Program::m_postCustomLayerTag("_cldnn_custom_postproce
 #if defined(_WIN32)
 #define mkdir(dir, mode) _mkdir(dir)
 #endif
+
+std::string layer_type_lower(const ngraph::Node* op) {
+    std::string layerType = op->get_type_name();
+    std::transform(layerType.begin(), layerType.end(), layerType.begin(),
+        [](unsigned char c) -> unsigned char { return std::tolower(c); });
+    return layerType;
+}
+
+std::string layer_type_name_ID(const ngraph::Node* op) {
+    return layer_type_lower(op) + ":" + op->get_friendly_name();
+}
+
+std::string layer_type_lower(const std::shared_ptr<ngraph::Node>& op) {
+    return layer_type_lower(op.get());
+}
+
+std::string layer_type_name_ID(const std::shared_ptr<ngraph::Node>& op) {
+    return layer_type_name_ID(op.get());
+}
 
 void Program::changeInputBatch(int batch) {
     m_curBatch = batch;

@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/select.hpp"
+
 #include "api/select.hpp"
 #include "api/reorder.hpp"
 #include "api/reshape.hpp"

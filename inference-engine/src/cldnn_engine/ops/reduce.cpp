@@ -5,6 +5,17 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/reduce_sum.hpp"
+#include "ngraph/op/reduce_prod.hpp"
+#include "ngraph/op/reduce_mean.hpp"
+#include "ngraph/op/reduce_logical_or.hpp"
+#include "ngraph/op/reduce_logical_and.hpp"
+#include "ngraph/op/reduce_l1.hpp"
+#include "ngraph/op/reduce_l2.hpp"
+#include "ngraph/op/min.hpp"
+#include "ngraph/op/max.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/reduce.hpp"
 #include "api/reorder.hpp"
 

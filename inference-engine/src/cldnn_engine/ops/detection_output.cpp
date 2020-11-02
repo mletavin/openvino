@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/detection_output.hpp"
+
 #include "api/detection_output.hpp"
 
 namespace CLDNNPlugin {

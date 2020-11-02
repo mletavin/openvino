@@ -5,6 +5,42 @@
 #include "cldnn_program.h"
 #include "transformations/utils/utils.hpp"
 
+#include "ngraph/op/tanh.hpp"
+#include "ngraph/op/elu.hpp"
+#include "ngraph/op/sigmoid.hpp"
+#include "ngraph/op/relu.hpp"
+#include "ngraph/op/prelu.hpp"
+#include "ngraph/op/clamp.hpp"
+#include "ngraph/op/exp.hpp"
+#include "ngraph/op/not.hpp"
+#include "ngraph/op/asin.hpp"
+#include "ngraph/op/asinh.hpp"
+#include "ngraph/op/acos.hpp"
+#include "ngraph/op/acosh.hpp"
+#include "ngraph/op/atan.hpp"
+#include "ngraph/op/atanh.hpp"
+#include "ngraph/op/abs.hpp"
+#include "ngraph/op/floor.hpp"
+#include "ngraph/op/ceiling.hpp"
+#include "ngraph/op/erf.hpp"
+#include "ngraph/op/hard_sigmoid.hpp"
+#include "ngraph/op/log.hpp"
+#include "ngraph/op/negative.hpp"
+#include "ngraph/op/selu.hpp"
+#include "ngraph/op/softplus.hpp"
+#include "ngraph/op/tan.hpp"
+#include "ngraph/op/sin.hpp"
+#include "ngraph/op/sinh.hpp"
+#include "ngraph/op/cos.hpp"
+#include "ngraph/op/cosh.hpp"
+#include "ngraph/op/swish.hpp"
+#include "ngraph/op/hswish.hpp"
+#include "ngraph/op/mish.hpp"
+#include "ngraph/op/gelu.hpp"
+#include "ngraph/op/sign.hpp"
+#include "ngraph/op/hsigmoid.hpp"
+#include "ngraph/op/round.hpp"
+
 #include "api/activation.hpp"
 
 namespace CLDNNPlugin {
@@ -228,10 +264,6 @@ void Program::CreateNegativeOp(cldnn::topology& topology, const std::shared_ptr<
     CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::negative, {});
 }
 
-// void Program::CreateReciprocalOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
-
-// }
-
 void Program::CreateSeluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     auto op = std::dynamic_pointer_cast<ngraph::op::v0::Selu>(node);
     if (!op)
@@ -261,13 +293,6 @@ void Program::CreateSoftPlusOp(cldnn::topology& topology, const std::shared_ptr<
 
     CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::softplus, {});
 }
-
-// void Program::CreateSoftSignOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
-    // auto op = std::dynamic_pointer_cast<ngraph::op::v0::SoftSign>(node);
-    // if (!op)
-    //     THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
-    // CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::softsign, {});
-// }
 
 void Program::CreateTanOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     auto op = std::dynamic_pointer_cast<ngraph::op::v0::Tan>(node);

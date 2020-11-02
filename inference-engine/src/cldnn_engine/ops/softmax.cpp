@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/softmax.hpp"
+
 #include "api/softmax.hpp"
 
 namespace CLDNNPlugin {

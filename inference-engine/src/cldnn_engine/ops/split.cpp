@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/split.hpp"
+#include "ngraph/op/variadic_split.hpp"
+
 #include "api/crop.hpp"
 
 namespace CLDNNPlugin {

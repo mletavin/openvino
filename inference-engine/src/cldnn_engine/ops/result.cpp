@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/result.hpp"
+
 #include "api/reorder.hpp"
 
 using namespace InferenceEngine;

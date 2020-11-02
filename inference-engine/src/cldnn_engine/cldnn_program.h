@@ -18,11 +18,9 @@
 #include <api/engine.hpp>
 #include <api/topology.hpp>
 
-#include "ngraph/ngraph.hpp"
-
 #define INVALID_OP_MESSAGE std::string("Invalid ngraph Node type passed into ") + __PRETTY_FUNCTION__
 
-// Forward declarations for cldnn primitive parameters
+// Forward declarations for cldnn part
 namespace cldnn {
 enum class activation_func;
 struct activation_additional_params;
@@ -30,26 +28,17 @@ enum class reduce_mode : uint16_t;
 enum class eltwise_mode : int32_t;
 }  // namespace cldnn
 
+// Forward declarations for ngraph part
+namespace ngraph {
+    class Node;
+}  // namespace ngraph
+
 namespace CLDNNPlugin {
 
-inline std::string layer_type_lower(const ngraph::Node* op) {
-    std::string layerType = op->get_type_name();
-    std::transform(layerType.begin(), layerType.end(), layerType.begin(),
-        [](unsigned char c) -> unsigned char { return std::tolower(c); });
-    return layerType;
-}
-
-inline std::string layer_type_name_ID(const ngraph::Node* op) {
-    return layer_type_lower(op) + ":" + op->get_friendly_name();
-}
-
-inline std::string layer_type_lower(const std::shared_ptr<ngraph::Node>& op) {
-    return layer_type_lower(op.get());
-}
-
-inline std::string layer_type_name_ID(const std::shared_ptr<ngraph::Node>& op) {
-    return layer_type_name_ID(op.get());
-}
+std::string layer_type_lower(const ngraph::Node* op);
+std::string layer_type_name_ID(const ngraph::Node* op);
+std::string layer_type_lower(const std::shared_ptr<ngraph::Node>& op);
+std::string layer_type_name_ID(const std::shared_ptr<ngraph::Node>& op);
 
 struct PerfCounter {
     InferenceEngine::InferenceEngineProfileInfo::LayerStatus status;

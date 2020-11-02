@@ -6,6 +6,8 @@
 #include "cldnn_common_utils.h"
 #include "transformations/utils/utils.hpp"
 
+#include "ngraph/op/one_hot.hpp"
+
 #include "api/one_hot.hpp"
 
 namespace CLDNNPlugin {

@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/max_pool.hpp"
+#include "ngraph/op/avg_pool.hpp"
+
 #include "api/pooling.hpp"
 
 namespace CLDNNPlugin {

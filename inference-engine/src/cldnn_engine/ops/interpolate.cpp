@@ -6,6 +6,9 @@
 #include "cldnn_common_utils.h"
 #include "caseless.hpp"
 
+#include "ngraph/op/interpolate.hpp"
+#include "ngraph/op/constant.hpp"
+
 #include "api/resample.hpp"
 
 namespace CLDNNPlugin {

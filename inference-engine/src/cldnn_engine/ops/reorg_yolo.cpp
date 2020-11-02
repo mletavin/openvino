@@ -5,6 +5,8 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/reorg_yolo.hpp"
+
 #include "api/reorg_yolo.hpp"
 
 namespace CLDNNPlugin {

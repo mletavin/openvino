@@ -5,6 +5,9 @@
 #include "cldnn_program.h"
 #include "cldnn_common_utils.h"
 
+#include "ngraph/op/convert.hpp"
+#include "ngraph/op/convert_like.hpp"
+
 #include "api/reorder.hpp"
 
 namespace CLDNNPlugin {
