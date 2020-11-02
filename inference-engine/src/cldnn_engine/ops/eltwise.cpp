@@ -6,6 +6,7 @@
 #include "cldnn_common_utils.h"
 #include "transformations/utils/utils.hpp"
 
+#include "api/activation.hpp"
 #include "api/eltwise.hpp"
 #include "api/reorder.hpp"
 #include "api/reshape.hpp"
@@ -195,8 +196,19 @@ void Program::CreatePowerOp(cldnn::topology& topology, const std::shared_ptr<ngr
     if (!op)
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
+    auto power_node = std::dynamic_pointer_cast<ngraph::op::v0::Constant>(op->get_input_node_shared_ptr(1));
+    if (power_node) {
+        if (ngraph::shape_size(power_node->get_output_shape(0)) == 1) {
+            float pow;
+            if (!ngraph::op::util::get_single_value(power_node, pow))
+                THROW_IE_EXCEPTION << "Invalid parameter size in " << op->get_friendly_name() << " (" << op->get_type_name() << ")";
+            CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::pow, {pow});
+            return;
+        }
+    }
     CreateElementwiseOp(topology, op, cldnn::eltwise_mode::pow);
 }
+
 
 void Program::CreateFloorModOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     auto op = std::dynamic_pointer_cast<ngraph::op::v1::FloorMod>(node);
