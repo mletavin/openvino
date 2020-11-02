@@ -28,6 +28,7 @@
 
 #include "eltwise_inst.h"
 #include "pooling_inst.h"
+#include "one_hot_inst.h"
 #include "permute_inst.h"
 #include "quantize_inst.h"
 #include "mvn_inst.h"
@@ -226,11 +227,20 @@ bool layout_optimizer::can_fuse_reorder(program_node& prev, program_node& next, 
     return false;
 }
 
-bool layout_optimizer::can_fuse_reorder_to_prev(program_node& prev, program_node& /*next*/, format /*fmt_prev*/, format fmt_next) {
+bool layout_optimizer::can_fuse_reorder_to_prev(program_node& prev, program_node& next, format fmt_prev, format fmt_next) {
+    auto dt_prev = prev.get_output_layout().data_type;
+    auto dt_next = next.get_output_layout().data_type;
+
     if (prev.is_type<reorder>())
         return true;
 
     if (prev.is_type<binary_convolution>() && fmt_next == format::b_fs_yx_fsv16)
+        return true;
+
+    if (prev.is_type<one_hot>() &&
+        !data_type_traits::is_floating_point(dt_prev) &&
+        data_type_traits::is_floating_point(dt_next) &&
+        fmt_prev == fmt_next)
         return true;
 
     if (prev.is_type<quantize>() &&
