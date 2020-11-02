@@ -167,7 +167,6 @@ private:
     void CreatePReluOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateClampOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateExpOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
-    void CreateNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateAsinOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateAsinhOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateAcosOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);

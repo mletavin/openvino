@@ -94,14 +94,6 @@ void Program::CreateExpOp(cldnn::topology& topology, const std::shared_ptr<ngrap
     CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::exp, {});
 }
 
-void Program::CreateNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
-    auto op = std::dynamic_pointer_cast<ngraph::op::v0::Not>(node);
-    if (!op)
-        THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
-
-    CreateUnaryEltwiseOp(topology, op, cldnn::activation_func::negation, {});
-}
-
 void Program::CreateLogicalNotOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     auto op = std::dynamic_pointer_cast<ngraph::op::v1::LogicalNot>(node);
     if (!op)

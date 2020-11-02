@@ -17,8 +17,6 @@
 #include "simple_math.h"
 #include <description_buffer.hpp>
 #include <cldnn/cldnn_config.hpp>
-#include <legacy/graph_tools.hpp>
-#include <legacy/net_pass.h>
 #include "cldnn_infer_request.h"
 #include <threading/ie_executor_manager.hpp>
 #include <fstream>
