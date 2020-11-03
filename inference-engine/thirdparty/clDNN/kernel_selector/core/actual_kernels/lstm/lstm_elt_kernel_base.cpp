@@ -19,7 +19,10 @@
 #include "common_tools.h"
 #include <string>
 
+#include <iostream>
+
 namespace kernel_selector {
+
 JitConstants LSTMEltKernelBase::GetJitConstants(const lstm_elt_params& params) const {
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
@@ -28,15 +31,6 @@ JitConstants LSTMEltKernelBase::GetJitConstants(const lstm_elt_params& params) c
         jit.AddConstants({MakeJitConstant("CELL_TERM", true),
                           MakeJitConstant("CELL", cell),
                           MakeJitConstant("CELL_DIRECTION", params.cell_direction)});
-    }
-    if (params.clip > 0) {
-        std::string psclip = toCodeString(params.clip);
-        std::string nsclip = toCodeString(-params.clip);
-        jit.AddConstants(
-            {MakeJitConstant("CLIP(x)",
-                             "((x > " + psclip + ") ? " + psclip + ": (x < " + nsclip + ") ? " + nsclip + " : (x))")});
-    } else {
-        jit.AddConstants({MakeJitConstant("CLIP(x)", "(x)")});
     }
     if (params.input_forget) {
         jit.AddConstants({MakeJitConstant("INPUT_FORGET", true)});
@@ -51,6 +45,29 @@ JitConstants LSTMEltKernelBase::GetJitConstants(const lstm_elt_params& params) c
         MakeJitConstant("GEMM_OFFSET_F", params.GetOffsetIndexF() * size),
         MakeJitConstant("GEMM_OFFSET_Z", params.GetOffsetIndexZ() * size),
     });
+
+    auto ftype = GetUnitType(params);
+    //auto ftype = Datatype::F32;
+    static const std::vector<std::string> asuffixes = {"_F","_G","_H","_CLIP"};
+    for (size_t i = 0; i < params.activations.size(); i++) {
+        std::vector<base_activation_params> aparams = { params.activations[i] };
+        jit.Merge(MakeActivationJitConstants(aparams, ftype, asuffixes[i]));
+    }
+
+    if (params.clip > 0) {
+    } else {
+        jit.AddConstants({
+                MakeJitConstant("ACTIVATION_PARAMS_CLIP", ""),
+                MakeJitConstant("ACTIVATION_CLIP(x, p)", "(x)"),
+            });
+    }
+
+    /*{
+        auto defs = jit.GetDefinitions();
+        for (auto& def : defs)
+            std::cout << def.first << " : " << def.second << std::endl;
+    }*/
+
     return jit;
 }
 

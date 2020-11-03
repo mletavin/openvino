@@ -45,6 +45,7 @@
 #include <transformations/op_conversions/gru_cell_decomposition.hpp>
 #include <transformations/op_conversions/lstm_cell_decomposition.hpp>
 #include <transformations/op_conversions/rnn_cell_decomposition.hpp>
+#include <transformations/op_conversions/bidirectional_sequences_decomposition.hpp>
 #include <transformations/convert_precision.hpp>
 #include <transformations/init_node_info.hpp>
 #include <transformations/rt_info/fused_names_attribute.hpp>
@@ -111,6 +112,10 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
 
         manager.register_pass<ngraph::pass::GRUCellDecomposition>();
         manager.register_pass<ngraph::pass::RNNCellDecomposition>();
+
+        manager.register_pass<ngraph::pass::BidirectionalLSTMSequenceDecomposition>();
+        manager.register_pass<ngraph::pass::BidirectionalGRUSequenceDecomposition>();
+        manager.register_pass<ngraph::pass::BidirectionalRNNSequenceDecomposition>();
 
         std::vector<std::pair<ngraph::element::Type, ngraph::element::Type>> convert_precision_list {
                 {ngraph::element::i64, ngraph::element::i32},
@@ -260,6 +265,8 @@ ExecutableNetworkInternal::Ptr clDNNEngine::LoadExeNetworkImpl(const InferenceEn
     auto device_info = GetDeviceInfo(config);
     conf.enableInt8 = device_info.supports_imad || device_info.supports_immad;
     conf.UpdateFromMap(config);
+    //conf.graph_dumps_dir = "cldnn_graph_dumps";
+    //conf.sources_dumps_dir = "cldnn_sources_dumps";
 
     if (conf.enableDynamicBatch) {
         conf.max_dynamic_batch = static_cast<int>(network.getBatchSize());

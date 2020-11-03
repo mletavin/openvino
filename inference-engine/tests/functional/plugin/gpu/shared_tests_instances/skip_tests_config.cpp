@@ -45,7 +45,9 @@ std::vector<std::string> disabledTestPatterns() {
             R"(.*(smoke_DetectionOutput3In).*)",
             R"(.*(smoke_DetectionOutput5In).*)",
             // Not implemented yet
-            R"(.*(smoke_LSTM).*)",
+            //R"(.*(smoke_LSTM).*)",
+            //R"(.*(smoke_LSTMSequence).*)",
+
             R"(.*(RNNSequenceTest).*)",
             R"(.*(GRUSequenceTest).*)",
             R"(.*(ScatterUpdateLayerTest).*)",
