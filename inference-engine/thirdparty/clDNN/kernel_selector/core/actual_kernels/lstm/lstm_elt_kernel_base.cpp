@@ -47,26 +47,20 @@ JitConstants LSTMEltKernelBase::GetJitConstants(const lstm_elt_params& params) c
     });
 
     auto ftype = GetUnitType(params);
-    //auto ftype = Datatype::F32;
+    jit.Merge(MakeTypeJitConstants(ftype, "ACCUMULATOR"));
+
     static const std::vector<std::string> asuffixes = {"_F","_G","_H","_CLIP"};
     for (size_t i = 0; i < params.activations.size(); i++) {
         std::vector<base_activation_params> aparams = { params.activations[i] };
         jit.Merge(MakeActivationJitConstants(aparams, ftype, asuffixes[i]));
     }
 
-    if (params.clip > 0) {
-    } else {
+    if (params.clip <= 0) {
         jit.AddConstants({
                 MakeJitConstant("ACTIVATION_PARAMS_CLIP", ""),
                 MakeJitConstant("ACTIVATION_CLIP(x, p)", "(x)"),
             });
     }
-
-    /*{
-        auto defs = jit.GetDefinitions();
-        for (auto& def : defs)
-            std::cout << def.first << " : " << def.second << std::endl;
-    }*/
 
     return jit;
 }

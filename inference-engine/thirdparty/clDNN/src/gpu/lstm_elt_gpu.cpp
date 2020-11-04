@@ -64,24 +64,21 @@ public:
             auto param_sz = prim->activation_params.size();
             if (param_sz) {
                 CLDNN_ERROR_NOT_EQUAL(arg.id(),
-                    "number of activations",
-                    a_sz,
-                    "number of activation parameters",
-                    param_sz,
-                    "activations/parameters num mismatch");
+                                      "number of activations",
+                                      a_sz,
+                                      "number of activation parameters",
+                                      param_sz,
+                                      "activations/parameters num mismatch");
             }
             for (size_t i = 0; i < a_sz; i++) {
-                lstm_elt_params.activations.emplace_back(
-                    get_kernel_selector_activation_param(prim->activations[i]),
-                    param_sz ? prim->activation_params[i].a : 0.0f,
-                    param_sz ? prim->activation_params[i].b : 0.0f);
+                lstm_elt_params.activations.emplace_back(get_kernel_selector_activation_param(prim->activations[i]),
+                                                         param_sz ? prim->activation_params[i].a : 0.0f,
+                                                         param_sz ? prim->activation_params[i].b : 0.0f);
             }
         }
 
         if (prim->clip > 0.0f) {
-            lstm_elt_params.activations.emplace_back(
-                get_kernel_selector_activation_param(activation_func::clamp),
-                -prim->clip, prim->clip);
+            lstm_elt_params.activations.emplace_back(get_kernel_selector_activation_param(activation_func::clamp), -prim->clip, prim->clip);
         }
 
         lstm_elt_params.SetOffsetOrder(static_cast<int32_t>(arg.offset_order()));

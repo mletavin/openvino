@@ -60,7 +60,7 @@ bool Program::CanProcessDynBatch(std::vector<std::shared_ptr<ngraph::Node>> ops,
 
     for (auto op : ops) {
         // TODO: do we have any other exception cases?
-        if (std::dynamic_pointer_cast<ngraph::op::v0::Reshape>(op)) {
+        if (std::dynamic_pointer_cast<ngraph::op::v1::Reshape>(op)) {
             if (op->get_input_shape(0)[0] == op->get_output_shape(0)[0])
                 continue;
         }
@@ -73,7 +73,7 @@ bool Program::CanProcessDynBatch(std::vector<std::shared_ptr<ngraph::Node>> ops,
             std::dynamic_pointer_cast<ngraph::op::v0::ROIPooling>(op) ||
             std::dynamic_pointer_cast<ngraph::op::v0::PriorBox>(op) ||
             std::dynamic_pointer_cast<ngraph::op::v0::DetectionOutput>(op) ||
-            std::dynamic_pointer_cast<ngraph::op::v0::Reshape>(op) ||
+            std::dynamic_pointer_cast<ngraph::op::v1::Reshape>(op) ||
             std::dynamic_pointer_cast<ngraph::op::v0::Squeeze>(op) ||
             std::dynamic_pointer_cast<ngraph::op::v0::Unsqueeze>(op) ||
             std::dynamic_pointer_cast<ngraph::op::v1::Transpose>(op) ||

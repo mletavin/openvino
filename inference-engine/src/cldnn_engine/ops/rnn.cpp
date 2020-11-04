@@ -169,7 +169,7 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
         THROW_IE_EXCEPTION << INVALID_OP_MESSAGE;
 
     ValidateInputs(op, {7});
-    
+
     std::string layerName = layer_type_name_ID(op);
     int lstm_batch_size, lstm_input_size, lstm_hidden_size, lstm_sequence_len;
 
@@ -188,8 +188,8 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
             THROW_IE_EXCEPTION << "Wrong input shapes for LSTMSequence op " << op->get_friendly_name();
 
         lstm_input_size = in_dims0.back();
-        lstm_sequence_len = in_dims0.at(in_dims0.size()-2);
-        lstm_batch_size = in_dims0.at(in_dims0.size()-3);
+        lstm_sequence_len = in_dims0.at(in_dims0.size() - 2);
+        lstm_batch_size = in_dims0.at(in_dims0.size() - 3);
         lstm_hidden_size = out_dims0.back();
     }
 
@@ -219,9 +219,8 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
             activation_params.push_back(cldnn::activation_additional_params(params));
         }
     }
-    float clip = op->get_clip();
 
-    // auto dir = op->get_direction();
+    float clip = op->get_clip();
     bool isForward = op->get_direction() == ngraph::op::RecurrentSequenceDirection::FORWARD;
 
     //  LSTM primitive works with single precision for all in/out/weights tensors
@@ -254,8 +253,8 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
     cldnn::layout gemmLayout = cldnn::layout(lstm_dtype, cldnn::format::bfyx, gemmSz);
     cldnn::tensor hiddenSz = cldnn::tensor{ lstm_batch_size, 1, lstm_hidden_size, 1 };
     cldnn::tensor cellCropSz = cldnn::tensor{0, 1, 0, 0};
-    cldnn::primitive_id hiddenStr = inHiddenReshapeID+"_1";
-    cldnn::primitive_id cellStr = inHiddenReshapeID+"_2";
+    cldnn::primitive_id hiddenStr = inHiddenReshapeID + "_1";
+    cldnn::primitive_id cellStr = inHiddenReshapeID + "_2";
     cldnn::primitive_id inputCropID = layerName + "_inputCrop";
 
     cldnn::primitive_id WRconcatID = weightID + "_" + recurrentID;

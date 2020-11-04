@@ -30,7 +30,7 @@ enum class eltwise_mode : int32_t;
 
 // Forward declarations for ngraph part
 namespace ngraph {
-    class Node;
+class Node;
 }  // namespace ngraph
 
 namespace CLDNNPlugin {
