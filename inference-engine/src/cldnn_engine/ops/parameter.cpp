@@ -194,9 +194,9 @@ void Program::CreateParameterOp(cldnn::topology& topology,
         std::string uv_name = inputName + "_UV";
 
         cldnn::layout y_layout(DataTypeFromPrecision(ip),
-                                cldnn::format::nv12, { 1, 1, height, width });
+                                cldnn::format::nv12, { 1, 1, width, height });
         cldnn::layout uv_layout(DataTypeFromPrecision(ip),
-                                cldnn::format::nv12, { 1, 2, height / 2, width / 2 });
+                                cldnn::format::nv12, { 1, 2, width / 2, height / 2 });
         auto inputY = cldnn::input_layout(y_name, y_layout);
         auto inputUV = cldnn::input_layout(uv_name, uv_layout);
 
