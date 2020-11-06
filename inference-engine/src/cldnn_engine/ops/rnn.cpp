@@ -133,7 +133,7 @@ void Program::CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<
     std::string lstm_elt_id = layerName + "_lstm_elt";
     std::string crop_id = layerName + "_crop";
 
-    cldnn::primitive_id WRconcatID = weightID + "_" + recurrentID;
+    cldnn::primitive_id WRconcatID = layerName + "_WRconcat";
     topology.add(cldnn::concatenation(WRconcatID, { weightID, recurrentID }, cldnn::concatenation::concatenation_axis::along_f));
     AddInnerPrimitiveToProfiler(WRconcatID, op->get_friendly_name(), op);
 
@@ -257,7 +257,7 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
     cldnn::primitive_id cellStr = inHiddenReshapeID + "_2";
     cldnn::primitive_id inputCropID = layerName + "_inputCrop";
 
-    cldnn::primitive_id WRconcatID = weightID + "_" + recurrentID;
+    cldnn::primitive_id WRconcatID = layerName + "_WRconcat";
     topology.add(cldnn::concatenation(WRconcatID, { weightID, recurrentID }, cldnn::concatenation::concatenation_axis::along_y));
     AddInnerPrimitiveToProfiler(WRconcatID, op->get_friendly_name(), op);
 
