@@ -14,6 +14,9 @@
 #include "api/lstm.hpp"
 #include "api/crop.hpp"
 #include "api/concatenation.hpp"
+#include "api/reverse_sequence.hpp"
+#include "api/mutable_data.hpp"
+#include "api/lstm_dynamic.hpp"
 
 namespace CLDNNPlugin {
 cldnn::activation_func activation_from_name(std::string name) {
@@ -27,6 +30,38 @@ cldnn::activation_func activation_from_name(std::string name) {
         return itr->second;
     else
         return cldnn::activation_func::none;
+}
+
+template <typename T>
+void getLSTMActivationStuff(const std::shared_ptr<T>& op,
+    std::vector<cldnn::activation_func>& activations,
+    std::vector<cldnn::activation_additional_params>& activation_params) {
+    activations = { cldnn::activation_func::logistic,
+                    cldnn::activation_func::hyperbolic_tan,
+                    cldnn::activation_func::hyperbolic_tan };
+    activation_params = {};
+    auto op_activations = op->get_activations();
+    if (!op_activations.empty()) {
+        if (op_activations.size() != 3)
+            THROW_IE_EXCEPTION << "Wrong number of activations for LSTMCell op " << op->get_friendly_name();
+        for (int i = 0; i < 3; i++) {
+            auto af = activation_from_name(op_activations[i]);
+            if (af == cldnn::activation_func::none)
+                THROW_IE_EXCEPTION << "Wrong or unsupported activation type " << op_activations[i]
+                << " for LSTMCell op " << op->get_friendly_name();
+            activations[i] = af;
+        }
+    }
+    auto op_a = op->get_activations_alpha();
+    auto op_b = op->get_activations_beta();
+    if (!op_a.empty()) {
+        if (op_a.size() != 3 || op_b.size() != 3)
+            THROW_IE_EXCEPTION << "Wrong number of activation parameters for LSTMCell op " << op->get_friendly_name();
+        for (int i = 0; i < 3; i++) {
+            cldnn::activation_additional_params params = { op_a[i], op_b[i] };
+            activation_params.push_back(cldnn::activation_additional_params(params));
+        }
+    }
 }
 
 void Program::CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
@@ -59,32 +94,9 @@ void Program::CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<
         lstm_hidden_size = out_dims0.back();
     }
 
-    std::vector<cldnn::activation_func> activations = { cldnn::activation_func::logistic,
-                                                        cldnn::activation_func::hyperbolic_tan,
-                                                        cldnn::activation_func::hyperbolic_tan };
-    std::vector<cldnn::activation_additional_params> activation_params = {};
-    auto op_activations = op->get_activations();
-    if (!op_activations.empty()) {
-        if (op_activations.size() != 3)
-            THROW_IE_EXCEPTION << "Wrong number of activations for LSTMCell op " << op->get_friendly_name();
-        for (int i = 0; i < 3; i++) {
-            auto af = activation_from_name(op_activations[i]);
-            if (af == cldnn::activation_func::none)
-                THROW_IE_EXCEPTION << "Wrong or unsupported activation type " << op_activations[i]
-                                   << " for LSTMCell op " << op->get_friendly_name();
-            activations[i] = af;
-        }
-    }
-    auto op_a = op->get_activations_alpha();
-    auto op_b = op->get_activations_beta();
-    if (!op_a.empty()) {
-        if (op_a.size() != 3 || op_b.size() != 3)
-            THROW_IE_EXCEPTION << "Wrong number of activation parameters for LSTMCell op " << op->get_friendly_name();
-        for (int i = 0; i < 3; i++) {
-            cldnn::activation_additional_params params = { op_a[i], op_b[i] };
-            activation_params.push_back(cldnn::activation_additional_params(params));
-        }
-    }
+    std::vector<cldnn::activation_func> activations;
+    std::vector<cldnn::activation_additional_params> activation_params;
+    getLSTMActivationStuff(op, activations, activation_params);
     float clip = op->get_clip();
 
     //  LSTM primitive works with single precision for all in/out/weights tensors
@@ -163,6 +175,139 @@ void Program::CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<
     AddPrimitiveToProfiler(layerName, op, outputHiddenID);
 }
 
+void Program::CreateDynamicLSTM(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
+    auto op = std::dynamic_pointer_cast<ngraph::op::v5::LSTMSequence>(node);
+    std::string layerName = layer_type_name_ID(op);
+    int lstm_batch_size, lstm_input_size, lstm_hidden_size, lstm_sequence_len, num_directions = 1;
+    bool reverseSeq = false;
+
+    {
+        const auto in_dims0 = op->get_input_shape(0);
+        const auto out_dims0 = op->get_output_shape(0);
+
+        lstm_input_size = in_dims0.back();
+        lstm_sequence_len = in_dims0.at(in_dims0.size() - 2);
+        lstm_batch_size = in_dims0.at(in_dims0.size() - 3);
+        lstm_hidden_size = out_dims0.back();
+        if (op->get_direction() == ngraph::op::RecurrentSequenceDirection::BIDIRECTIONAL)
+            num_directions = 2;
+        else if (op->get_direction() == ngraph::op::RecurrentSequenceDirection::REVERSE)
+            reverseSeq = true;
+    }
+
+    auto inputPrimitives = GetInputPrimitiveIDs(op);
+    cldnn::primitive_id inputID = inputPrimitives[0];
+    cldnn::primitive_id initial_hidden_stateID = inputPrimitives[1];
+    cldnn::primitive_id initial_cell_stateID = inputPrimitives[2];
+    cldnn::primitive_id lengthsID = inputPrimitives[3];
+    cldnn::primitive_id weightID = inputPrimitives[4];
+    cldnn::primitive_id recurrentID = inputPrimitives[5];
+    cldnn::primitive_id biasID = inputPrimitives[6];
+
+    std::vector<cldnn::activation_func> activations;
+    std::vector<cldnn::activation_additional_params> activation_params;
+    getLSTMActivationStuff(op, activations, activation_params);
+    float clip = op->get_clip();
+    auto lstm_dtype = DataTypeFromPrecision(op->get_output_element_type(0));
+
+    cldnn::tensor wShape = cldnn::tensor(cldnn::batch(1), cldnn::feature(num_directions), cldnn::spatial(lstm_input_size, 4 * lstm_hidden_size));
+    cldnn::tensor rShape = cldnn::tensor(cldnn::batch(1), cldnn::feature(num_directions), cldnn::spatial(lstm_hidden_size, 4 * lstm_hidden_size));
+    cldnn::tensor bShape = cldnn::tensor(cldnn::batch(1), cldnn::feature(num_directions), cldnn::spatial(4 * lstm_hidden_size, 1));
+    cldnn::primitive_id wReshapeID = weightID + "_Reshape";
+    cldnn::primitive_id rReshapeID = recurrentID + "_Reshape";
+    cldnn::primitive_id bReshapeID = biasID + "_Reshape";
+    topology.add(cldnn::reshape(wReshapeID, weightID, wShape));
+    AddInnerPrimitiveToProfiler(wReshapeID, op->get_friendly_name(), op);
+    topology.add(cldnn::reshape(rReshapeID, recurrentID, rShape));
+    AddInnerPrimitiveToProfiler(rReshapeID, op->get_friendly_name(), op);
+    topology.add(cldnn::reshape(bReshapeID, biasID, bShape));
+    AddInnerPrimitiveToProfiler(bReshapeID, op->get_friendly_name(), op);
+
+    cldnn::primitive_id inReshapeID = layerName + "_inReshape";
+    cldnn::primitive_id permuteID = layerName + "_inputReorder";
+    cldnn::primitive_id inHiddenReshapeID = layerName + "_inHiddenReshape";
+    cldnn::primitive_id inHiddenReorderID = layerName + "_inHiddenReorder";
+
+    cldnn::tensor inputShape = { lstm_batch_size, lstm_sequence_len, lstm_input_size, num_directions };
+    cldnn::tensor hiddenStateShape = { lstm_batch_size, 1, lstm_hidden_size, num_directions };
+    cldnn::layout inputLayout = cldnn::layout(lstm_dtype, cldnn::format::bfyx, inputShape);
+    cldnn::layout hiddenLayout = cldnn::layout(lstm_dtype, cldnn::format::bfyx, hiddenStateShape);
+
+    topology.add(cldnn::reshape(inReshapeID, inputID, inputShape));
+    topology.add(cldnn::reorder(permuteID, inReshapeID, inputLayout));
+    AddInnerPrimitiveToProfiler(inReshapeID, op->get_friendly_name(), op);
+    AddInnerPrimitiveToProfiler(permuteID, op->get_friendly_name(), op);
+
+    std::string hiddenInResh = inHiddenReshapeID + "_1";
+    std::string hiddenInStr = inHiddenReorderID + "_1";
+    std::string cellInResh = inHiddenReshapeID + "_2";
+    std::string cellInStr = inHiddenReorderID + "_2";
+    topology.add(cldnn::reshape(hiddenInResh, initial_hidden_stateID, hiddenStateShape));
+    topology.add(cldnn::reorder(hiddenInStr, hiddenInResh, hiddenLayout));
+    topology.add(cldnn::reshape(cellInResh, initial_cell_stateID, hiddenStateShape));
+    topology.add(cldnn::reorder(cellInStr, cellInResh, hiddenLayout));
+
+    AddInnerPrimitiveToProfiler(hiddenInResh, op->get_friendly_name(), op);
+    AddInnerPrimitiveToProfiler(hiddenInStr, op->get_friendly_name(), op);
+    AddInnerPrimitiveToProfiler(cellInResh, op->get_friendly_name(), op);
+    AddInnerPrimitiveToProfiler(cellInStr, op->get_friendly_name(), op);
+
+    cldnn::primitive_id dynID = layerName + "_dynLength";
+    cldnn::primitive_id dynReshapeID = layerName + "_dynReshape";
+    cldnn::tensor dynShape = { 1, 1, lstm_batch_size, 1 };
+    cldnn::layout dynLayout = cldnn::layout(lstm_dtype, cldnn::format::bfyx, dynShape);
+    topology.add(cldnn::reshape(dynReshapeID, lengthsID, dynShape));
+    topology.add(cldnn::reorder(dynID, dynReshapeID, dynLayout));
+
+    AddInnerPrimitiveToProfiler(dynReshapeID, op->get_friendly_name(), op);
+    AddInnerPrimitiveToProfiler(dynID, op->get_friendly_name(), op);
+
+    cldnn::primitive_id realInputID = permuteID;
+    cldnn::primitive_id prevInputID = permuteID;
+
+    cldnn::primitive_id seq_len_id = layerName + "seq_lengths";
+    if (reverseSeq) {
+        realInputID = layerName + "_inputReverse";
+        topology.add(cldnn::reverse_sequence(realInputID, prevInputID, dynID, 1, 0));
+        AddInnerPrimitiveToProfiler(realInputID, op->get_friendly_name(), op);
+        prevInputID = realInputID;
+    }
+
+    cldnn::primitive_id outputHiddenID = layerName + ".1", outputCellID = layerName + ".2";
+    // last hidden state crop (output 2)
+    auto last_hidden_mem = cldnn::memory::allocate(*m_engine,
+        { lstm_dtype, cldnn::format::bfyx, { lstm_batch_size, 1, lstm_hidden_size, num_directions } });
+    topology.add(cldnn::mutable_data(outputHiddenID, last_hidden_mem));
+    primitiveIDs[outputHiddenID] = outputHiddenID;
+
+    // last cell state crop (output 3)
+    auto last_cell_mem = cldnn::memory::allocate(*m_engine,
+        { lstm_dtype, cldnn::format::bfyx, { lstm_batch_size, 1, lstm_hidden_size, num_directions } });
+    topology.add(cldnn::mutable_data(outputCellID, last_cell_mem));
+    primitiveIDs[outputCellID] = outputCellID;
+
+    // main part - dLSTM primitive intself
+    cldnn::primitive_id dlstmID = layerName + "_dlstm";
+    topology.add(cldnn::lstm_dynamic(dlstmID,
+        realInputID, dynID, wReshapeID, rReshapeID, outputHiddenID, outputCellID, bReshapeID,
+        hiddenInStr, cellInStr,
+        clip, 0, activations, activation_params, cldnn::lstm_weights_order::fizo));
+    prevInputID = realInputID = dlstmID;
+    AddInnerPrimitiveToProfiler(dlstmID, op->get_friendly_name(), op);
+
+    if (reverseSeq) {
+        realInputID = layerName + "_outputReverse";
+        topology.add(cldnn::reverse_sequence(realInputID, prevInputID, dynID, 1, 0));
+        AddInnerPrimitiveToProfiler(realInputID, op->get_friendly_name(), op);
+        prevInputID = realInputID;
+    }
+
+    cldnn::primitive_id mainOutputID = layerName + ".0";
+    primitiveIDs[mainOutputID] = realInputID;
+    primitiveIDs[layerName] = realInputID;
+    AddPrimitiveToProfiler(layerName, op);
+}
+
 void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node) {
     auto op = std::dynamic_pointer_cast<ngraph::op::v5::LSTMSequence>(node);
     if (!op)
@@ -172,11 +317,6 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
 
     std::string layerName = layer_type_name_ID(op);
     int lstm_batch_size, lstm_input_size, lstm_hidden_size, lstm_sequence_len;
-
-    auto inputPrimitives = GetInputPrimitiveIDs(op);
-    cldnn::primitive_id weightID = inputPrimitives[4];
-    cldnn::primitive_id recurrentID = inputPrimitives[5];
-    cldnn::primitive_id biasID = inputPrimitives[6];
 
     {
         const auto in_dims0 = op->get_input_shape(0);
@@ -193,33 +333,19 @@ void Program::CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_
         lstm_hidden_size = out_dims0.back();
     }
 
-    std::vector<cldnn::activation_func> activations = { cldnn::activation_func::logistic,
-                                                        cldnn::activation_func::hyperbolic_tan,
-                                                        cldnn::activation_func::hyperbolic_tan };
-    std::vector<cldnn::activation_additional_params> activation_params = {};
-    auto op_activations = op->get_activations();
-    if (!op_activations.empty()) {
-        if (op_activations.size() != 3)
-            THROW_IE_EXCEPTION << "Wrong number of activations for LSTMCell op " << op->get_friendly_name();
-        for (int i = 0; i < 3; i++) {
-            auto af = activation_from_name(op_activations[i]);
-            if (af == cldnn::activation_func::none)
-                THROW_IE_EXCEPTION << "Wrong or unsupported activation type " << op_activations[i]
-                                   << " for LSTMCell op " << op->get_friendly_name();
-            activations[i] = af;
-        }
-    }
-    auto op_a = op->get_activations_alpha();
-    auto op_b = op->get_activations_beta();
-    if (!op_a.empty()) {
-        if (op_a.size() != 3 || op_b.size() != 3)
-            THROW_IE_EXCEPTION << "Wrong number of activation parameters for LSTMCell op " << op->get_friendly_name();
-        for (int i = 0; i < 3; i++) {
-            cldnn::activation_additional_params params = { op_a[i], op_b[i] };
-            activation_params.push_back(cldnn::activation_additional_params(params));
-        }
+    auto ln = op->get_input_shape(3).back();
+    if (lstm_batch_size == ln) {
+        return CreateDynamicLSTM(topology, node);
     }
 
+    auto inputPrimitives = GetInputPrimitiveIDs(op);
+    cldnn::primitive_id weightID = inputPrimitives[4];
+    cldnn::primitive_id recurrentID = inputPrimitives[5];
+    cldnn::primitive_id biasID = inputPrimitives[6];
+
+    std::vector<cldnn::activation_func> activations;
+    std::vector<cldnn::activation_additional_params> activation_params;
+    getLSTMActivationStuff(op, activations, activation_params);
     float clip = op->get_clip();
     bool isForward = op->get_direction() == ngraph::op::RecurrentSequenceDirection::FORWARD;
 

@@ -57,6 +57,7 @@ public:
     program_node& initial_cell() const { return get_dependency_by_name("initial_cell"); }
 
     float clip() const { return get_primitive()->clip; }
+    lstm_weights_order offset_order() const { return get_primitive()->offset_order; }
     int32_t direction() const { return recurrent().get_output_layout().size.feature[0]; }
     bool input_forget() const { return get_primitive()->input_forget; }
     bool dyn_length_term() const { return !get_primitive()->dyn_length.empty(); }

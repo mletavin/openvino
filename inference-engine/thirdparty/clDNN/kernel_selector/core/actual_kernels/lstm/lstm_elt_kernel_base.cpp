@@ -47,6 +47,14 @@ JitConstants LSTMEltKernelBase::GetJitConstants(const lstm_elt_params& params) c
     });
 
     auto ftype = GetUnitType(params);
+    // if ReLU activation present, we have to reset accumulator type for the kernel to FP32
+    // to avoid possible overflows on FP16, since ReLU doesn't limit upper border of its result
+    for (size_t i = 0; i < params.activations.size(); i++) {
+        if (params.activations[i].function == ActivationFunction::RELU) {
+            ftype = Datatype::F32;
+            break;
+        }
+    }
     jit.Merge(MakeTypeJitConstants(ftype, "ACCUMULATOR"));
 
     static const std::vector<std::string> asuffixes = {"_F","_G","_H","_CLIP"};

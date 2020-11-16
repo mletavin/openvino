@@ -264,6 +264,7 @@ private:
 
     // RNN
     void CreateLSTMSequenceOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
+    void CreateDynamicLSTM(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
     void CreateLSTMCellOp(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& node);
 
     // Broadcast

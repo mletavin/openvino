@@ -28,14 +28,6 @@ JitConstants LSTM_DynamicTimeloopKernelBase::GetJitConstants(const lstm_dynamic_
     size_t hidden_size = out.X().v;
 
     // [1] Certainties
-    jit.AddConstants({
-        // IE default: fizo
-        MakeJitConstant("GEMM_OFFSET_I", 1 * hidden_size),
-        MakeJitConstant("GEMM_OFFSET_O", 3 * hidden_size),
-        MakeJitConstant("GEMM_OFFSET_F", 0 * hidden_size),
-        MakeJitConstant("GEMM_OFFSET_Z", 2 * hidden_size),
-    });
-
     jit.AddConstants({MakeJitConstant("RECURRENT", params.recurrent),
                       MakeJitConstant("DYN_LENGTH", params.inputs.at(1)),
                       MakeJitConstant("HIDDEN_SIZE", hidden_size),
@@ -58,27 +50,49 @@ JitConstants LSTM_DynamicTimeloopKernelBase::GetJitConstants(const lstm_dynamic_
         });
     }
 
-    if (params.clip > 0) {
-        std::string psclip = toCodeString(params.clip);
-        std::string nsclip = toCodeString(-params.clip);
-        jit.AddConstants(
-            {MakeJitConstant("CLIP(x)",
-                             "((x > " + psclip + ") ? " + psclip + ": (x < " + nsclip + ") ? " + nsclip + " : (x))")});
-    } else {
-        jit.AddConstants({MakeJitConstant("CLIP(x)", "(x)")});
-    }
     if (params.input_forget) {
-        jit.AddConstants({MakeJitConstant("INPUT_FORGET", true)});
+        jit.AddConstants({ MakeJitConstant("INPUT_FORGET", true) });
     }
 
     if (params.has_last_hidden_output) {
         jit.AddConstants(
-            {MakeJitConstant("LAST_HIDDEN", params.last_hidden_output), MakeJitConstant("LAST_HIDDEN_TERM", true)});
+            { MakeJitConstant("LAST_HIDDEN", params.last_hidden_output), MakeJitConstant("LAST_HIDDEN_TERM", true) });
     }
 
     if (params.has_last_cell_output) {
         jit.AddConstants(
-            {MakeJitConstant("LAST_CELL", params.last_cell_output), MakeJitConstant("LAST_CELL_TERM", true)});
+            { MakeJitConstant("LAST_CELL", params.last_cell_output), MakeJitConstant("LAST_CELL_TERM", true) });
+    }
+
+    jit.AddConstants({
+        MakeJitConstant("GEMM_OFFSET_I", params.GetOffsetIndexI() * hidden_size),
+        MakeJitConstant("GEMM_OFFSET_O", params.GetOffsetIndexO() * hidden_size),
+        MakeJitConstant("GEMM_OFFSET_F", params.GetOffsetIndexF() * hidden_size),
+        MakeJitConstant("GEMM_OFFSET_Z", params.GetOffsetIndexZ() * hidden_size),
+        });
+
+    auto ftype = GetUnitType(params);
+    // if ReLU activation present, we have to reset accumulator type for the kernel to FP32
+    // to avoid possible overflows on FP16, since ReLU doesn't limit upper border of its result
+    for (size_t i = 0; i < params.activations.size(); i++) {
+        if (params.activations[i].function == ActivationFunction::RELU) {
+            ftype = Datatype::F32;
+            break;
+        }
+    }
+    jit.Merge(MakeTypeJitConstants(ftype, "ACCUMULATOR"));
+
+    static const std::vector<std::string> asuffixes = { "_F","_G","_H","_CLIP" };
+    for (size_t i = 0; i < params.activations.size(); i++) {
+        std::vector<base_activation_params> aparams = { params.activations[i] };
+        jit.Merge(MakeActivationJitConstants(aparams, ftype, asuffixes[i]));
+    }
+
+    if (params.clip <= 0) {
+        jit.AddConstants({
+                MakeJitConstant("ACTIVATION_PARAMS_CLIP", ""),
+                MakeJitConstant("ACTIVATION_CLIP(x, p)", "(x)"),
+            });
     }
 
     return jit;

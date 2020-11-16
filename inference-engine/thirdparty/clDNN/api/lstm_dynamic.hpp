@@ -17,6 +17,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 #include "primitive.hpp"
+#include "lstm.hpp"
 #include <vector>
 
 namespace cldnn {
@@ -64,6 +65,11 @@ struct lstm_dynamic : public primitive_base<lstm_dynamic> {
                  const primitive_id& initial_cell = "",
                  const float clip = 0.0f,
                  const bool input_forget = 0,
+                 const std::vector<activation_func> activations = { activation_func::logistic,
+                                                                    activation_func::hyperbolic_tan,
+                                                                    activation_func::hyperbolic_tan },
+                 const std::vector<activation_additional_params> activation_params = {},
+                 const lstm_weights_order offset_order = lstm_weights_order::iofz,
                  const padding& output_padding = padding())
         : primitive_base(id, {input}, output_padding),
           dyn_length(dyn_length),
@@ -75,7 +81,10 @@ struct lstm_dynamic : public primitive_base<lstm_dynamic> {
           initial_hidden(initial_hidden),
           initial_cell(initial_cell),
           clip(clip),
-          input_forget(input_forget) {}
+          input_forget(input_forget),
+          activations(activations),
+          activation_params(activation_params),
+          offset_order(offset_order) {}
 
     /// @brief Primitive id containing the dynamic sequence lengths.
     primitive_id dyn_length;
@@ -97,6 +106,12 @@ struct lstm_dynamic : public primitive_base<lstm_dynamic> {
     float clip;
     /// @brief Couple the input and forget gates if input_forget is 1. Default is 0.
     bool input_forget;
+    /// @brief A list of 3 activation functions for the input, output, forget, cell, and hidden.
+    std::vector<activation_func> activations;
+    /// @brief Optional scaling values used by some activation functions. The values are consumed in the order of activation functions.
+    std::vector<activation_additional_params> activation_params;
+    /// @brief Weights, recurrent weights, and biases order. [iofz] : ONNX, [ifoz] : Caffe
+    lstm_weights_order offset_order;
 
 protected:
     std::vector<std::reference_wrapper<const primitive_id>> get_dependencies() const override {

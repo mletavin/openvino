@@ -39,6 +39,9 @@ struct typed_program_node<lstm_dynamic> : public typed_program_node_base<lstm_dy
     primitive_id dyn_length_id() const { return get_primitive()->dyn_length; }
     primitive_id last_hidden_state_id() const { return get_primitive()->last_hidden_state; }
     primitive_id last_cell_state_id() const { return get_primitive()->last_cell_state; }
+    std::vector<activation_func> activations() const { return get_primitive()->activations; }
+    std::vector <activation_additional_params> activation_params() const { return get_primitive()->activation_params; }
+    lstm_weights_order offset_order() const { return get_primitive()->offset_order; }
 };
 
 using lstm_dynamic_node = typed_program_node<lstm_dynamic>;

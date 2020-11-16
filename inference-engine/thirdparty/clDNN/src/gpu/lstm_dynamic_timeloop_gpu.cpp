@@ -82,6 +82,32 @@ public:
             dlstm_timeloop_params.set_last_cell_output(convert_data_tensor(last_cell_state_layout));
         }
 
+        const auto& prim = arg.get_primitive();
+        if (!prim->activations.empty()) {
+            auto a_sz = prim->activations.size();
+            auto param_sz = prim->activation_params.size();
+            if (param_sz) {
+                CLDNN_ERROR_NOT_EQUAL(arg.id(),
+                    "number of activations",
+                    a_sz,
+                    "number of activation parameters",
+                    param_sz,
+                    "activations/parameters num mismatch");
+            }
+            for (size_t i = 0; i < a_sz; i++) {
+                dlstm_timeloop_params.activations.emplace_back(get_kernel_selector_activation_param(prim->activations[i]),
+                    param_sz ? prim->activation_params[i].a : 0.0f,
+                    param_sz ? prim->activation_params[i].b : 0.0f);
+            }
+        }
+
+        if (prim->clip > 0.0f) {
+            dlstm_timeloop_params.activations.emplace_back(get_kernel_selector_activation_param(activation_func::clamp), -prim->clip, prim->clip);
+        }
+
+        dlstm_timeloop_params.SetOffsetOrder(static_cast<int32_t>(arg.offset_order()));
+        dlstm_timeloop_params.clip = arg.clip();
+
         // finially get best kernel
         auto dlstm_timeloop_optional_params =
             get_default_optional_params<kernel_selector::lstm_dynamic_optional_params>(arg.get_program());

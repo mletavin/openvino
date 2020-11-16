@@ -99,10 +99,10 @@ KERNEL(lstm_dynamic_timeloop_ref)(
                         } //else timesteo ==0
                     }//for(uint x = 0; x < OUTPUT_SIZE_X; ++x)                  
                 }//if(use_hidden)
- 
-                //eltwise operation
-                eltiwse_vals[element_idx] = ACTIVATION_LOGISTIC(CLIP(it[element_idx])) * ACTIVATION_HYPERBOLIC_TAN(CLIP(zt[element_idx]));
-                #if INPUT_FORGET
+
+				eltiwse_vals[element_idx] = ACTIVATION_F(ACTIVATION_CLIP(it[element_idx], ACTIVATION_PARAMS_CLIP), ACTIVATION_PARAMS_F) *
+	                                        ACTIVATION_G(ACTIVATION_CLIP(zt[element_idx], ACTIVATION_PARAMS_CLIP), ACTIVATION_PARAMS_G);
+				#if INPUT_FORGET
                 eltiwse_vals[element_idx] *= ((ACCUMULATOR_TYPE)1 - ft[element_idx]);
                 #endif //INPUT_FORGET
 
@@ -111,12 +111,14 @@ KERNEL(lstm_dynamic_timeloop_ref)(
                     if(timestep == 0)
                     {
                     #if INIT_CELL_TERM
-                        eltiwse_vals[element_idx] += cell[GET_DATA_INDEX(INIT_CELL, b, 0, dir, y)] * ACTIVATION_LOGISTIC(CLIP(ft[element_idx]));
+                        eltiwse_vals[element_idx] += cell[GET_DATA_INDEX(INIT_CELL, b, 0, dir, y)] *
+						                             ACTIVATION_F(ACTIVATION_CLIP(ft[element_idx], ACTIVATION_PARAMS_CLIP), ACTIVATION_PARAMS_F);
                     #endif //INIT_CELL_TERM
                     }
                     else
                     {
-                        eltiwse_vals[element_idx] += cell_vals[element_idx] * ACTIVATION_LOGISTIC(CLIP(ft[element_idx]));
+                        eltiwse_vals[element_idx] += cell_vals[element_idx] *
+						                             ACTIVATION_F(ACTIVATION_CLIP(ft[element_idx], ACTIVATION_PARAMS_CLIP), ACTIVATION_PARAMS_F);
                     }
                 }
                 //end of eltwise operation
@@ -132,7 +134,8 @@ KERNEL(lstm_dynamic_timeloop_ref)(
             for(uint element_idx = 0; element_idx < ELEMENTS_TO_COUNT; element_idx++)
             {
                 const uint y = y_offset + element_idx;
-                output_value = (OUTPUT_TYPE)(ACTIVATION_HYPERBOLIC_TAN(eltiwse_vals[element_idx]) * ACTIVATION_LOGISTIC(ot[element_idx])); // hidden
+                output_value = (OUTPUT_TYPE)(ACTIVATION_H(eltiwse_vals[element_idx], ACTIVATION_PARAMS_H) *
+	                                         ACTIVATION_F(ACTIVATION_CLIP(ot[element_idx], ACTIVATION_PARAMS_CLIP), ACTIVATION_PARAMS_F));
                 output[GET_DATA_INDEX(OUTPUT, b, timestep, dir, y)] = output_value;
                 #if LAST_HIDDEN_TERM
                 if(timestep == unroll_timesteps - 1)

@@ -396,6 +396,9 @@ void graph_initializations::handle_dynamic_lstm(program_impl& p) {
             auto last_cell_id = lstm_dynamic_node.last_cell_state_id();
             auto clip = lstm_dynamic_node.clip();
             auto input_forget = lstm_dynamic_node.input_forget();
+            auto activations = lstm_dynamic_node.activations();
+            auto activation_params = lstm_dynamic_node.activation_params();
+            auto order = lstm_dynamic_node.offset_order();
             std::string suffix = "__cldnn_";
 
             // [1] Add lstm_dynamic_input
@@ -424,6 +427,9 @@ void graph_initializations::handle_dynamic_lstm(program_impl& p) {
                                                         last_cell_id,
                                                         init_hidden_id,
                                                         init_cell_id,
+                                                        activations,
+                                                        activation_params,
+                                                        order,
                                                         clip,
                                                         input_forget,
                                                         lstm_dynamic_input_primitive->output_padding);
