@@ -28,7 +28,7 @@
 using namespace cldnn;
 
 program_node::program_node(std::shared_ptr<primitive> prim, program_impl& prog)
-    : desc(prim), myprog(prog), org_id(prim->id) {
+    : desc(prim), myprog(prog), org_id(prim->id), strand_id(-1), strand_order_id(-1) {
     if (prim)
         output_layout.data_padding = prim->output_padding;
 }
@@ -77,6 +77,13 @@ void program_node::add_memory_dependency(primitive_id prim) { memory_dependencie
 void program_node::add_memory_dependency(std::vector<primitive_id> prim_list) {
     memory_dependencies.insert(prim_list.begin(), prim_list.end());
 }
+
+void program_node::set_strand_info(int _id, int _order_id) {
+    strand_id = _id;
+    strand_order_id = _order_id;
+}
+int program_node::get_strand_id() const { return strand_id; }
+int program_node::get_strand_order_id() const { return strand_order_id; }
 
 std::unique_ptr<json_composite> program_node::desc_to_json() const {
     std::unique_ptr<json_composite> node_info = std::unique_ptr<json_composite>(new json_composite());
@@ -280,9 +287,18 @@ bool program_node::is_padding_supported(int axis, int padding) const {
 }
 
 bool program_node::need_lockable_memory() const {
-    bool need_lockable_mem = get_users().empty() || std::any_of(get_users().begin(), get_users().end(), [](const program_node* n) {
-        return n->get_selected_impl()->is_cpu();
-    });
+    const auto& n_users = get_users();
+    if (selected_impl == nullptr)
+        return false;
+    bool need_lockable_mem = users.empty() || selected_impl->is_cpu() ||
+        std::any_of(n_users.begin(), n_users.end(), [](const program_node* n) {
+                        const auto& child_impl = n->get_selected_impl();
+                        const bool opt_flag = n->can_be_optimized();
+                        if (child_impl == nullptr)
+                            return opt_flag;
+                        else
+                            return child_impl->is_cpu() || opt_flag;
+                    });
 
     return need_lockable_mem;
 }

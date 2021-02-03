@@ -125,6 +125,10 @@ public:
     void add_memory_dependency(primitive_id);
     void add_memory_dependency(std::vector<primitive_id>);
 
+    void set_strand_info(int, int);
+    int get_strand_id() const;
+    int get_strand_order_id() const;
+
     template <class PType>
     bool have_user_with_type() const {
         for (auto const& usr : users) {
@@ -332,6 +336,9 @@ protected:
 
     // list of primitives that can reuse same memory buffers due to execution order conflicts
     std::set<primitive_id> memory_dependencies;
+    // strand id and order in the strand for stranded memory reuse
+    int strand_id;
+    int strand_order_id;
 
     bool constant = false;
     bool data_flow = false;

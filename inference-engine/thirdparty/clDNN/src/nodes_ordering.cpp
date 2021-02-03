@@ -19,6 +19,7 @@
 #include "program_impl.h"
 #include "program_node.h"
 #include "error_handler.h"
+#include "memory_impl.h"
 #include <vector>
 #include <map>
 #include <algorithm>

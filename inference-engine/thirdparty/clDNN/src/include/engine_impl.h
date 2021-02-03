@@ -58,6 +58,7 @@ public:
                                                     primitive_id,
                                                     uint32_t network_id,
                                                     std::set<primitive_id>,
+                                                    uint32_t prog_id, int strand_id, int strand_order_id,
                                                     allocation_type type,
                                                     bool reusable = true);
     refcounted_obj_ptr<memory_impl> reinterpret_buffer(const memory_impl& memory, const layout& new_layout);

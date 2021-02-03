@@ -18,6 +18,7 @@
 #include "api/event.hpp"
 #include "event_impl.h"
 #include "engine_impl.h"
+#include "memory_impl.h"
 #include <list>
 #include <vector>
 #include <algorithm>

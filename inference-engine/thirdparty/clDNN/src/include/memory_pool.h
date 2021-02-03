@@ -80,6 +80,41 @@ struct padded_pool_comparer {
     }
 };
 
+struct memory_strand_info {
+    uint64_t sz_even;
+    uint64_t sz_odd;
+
+    // lockable memory is treated separately
+    uint64_t sz_even_lock;
+    uint64_t sz_odd_lock;
+
+    // padded memory should also be treated separately
+    // maybe a list of all padded buffers
+    // or padded layouts for this strand should be here
+    // ...
+    memory_strand_info() :sz_even(0), sz_odd(0), sz_even_lock(0), sz_odd_lock(0) {};
+};
+
+using memory_strands = std::vector<memory_strand_info>;
+
+struct stranded_memory {
+    refcounted_obj_ptr<memory_impl> _memory_even;
+    refcounted_obj_ptr<memory_impl> _memory_odd;
+    refcounted_obj_ptr<memory_impl> _memory_even_lockable;
+    refcounted_obj_ptr<memory_impl> _memory_odd_lockable;
+};
+
+struct stranded_memory_record {
+    uint32_t _network_id;
+    std::vector<stranded_memory> mem_array;
+    stranded_memory_record(uint32_t net_id, size_t num_strands) : _network_id(net_id), mem_array(num_strands) {};
+};
+
+struct stranded_pool_record {
+    memory_strands alloc_info;
+    std::list<stranded_memory_record> network_memory;
+};
+
 // memory_pool class implements memory manager that handles 4 memory pools
 // - non padded buffers -
 //     1 user requests for buffer with no padding.
@@ -106,6 +141,7 @@ class memory_pool {
     refcounted_obj_ptr<memory_impl> alloc_memory(const layout& layout, allocation_type type, uint32_t network_id, bool reset = true);
     static bool has_conflict(const memory_set&, const std::set<primitive_id>&, uint32_t network_id);
 
+    std::map<uint32_t, stranded_pool_record> _stranded_pool;
     std::multimap<uint64_t, memory_record> _non_padded_pool;
     std::map<layout, std::list<memory_record>, padded_pool_comparer> _padded_pool;
     std::multimap<uint64_t, memory_record> _no_reusable_pool;
@@ -120,10 +156,18 @@ public:
                                                const primitive_id& id,
                                                uint32_t network_id,
                                                const std::set<primitive_id>& restrictions,
+                                               uint32_t prog_id, int strand_id, int strand_order_id,
                                                allocation_type type,
                                                bool reusable = true);  // get from pool or create memory allocation
     refcounted_obj_ptr<memory_impl> get_memory(const layout& layout, allocation_type type, uint32_t network_id, bool reset = true);
     refcounted_obj_ptr<memory_impl> get_memory(const layout& layout, const shared_mem_params* params, uint32_t network_id);
+    void prepare_strands(uint32_t prog_id, const memory_strands& strands);
+    refcounted_obj_ptr<memory_impl> get_from_stranded_pool(const layout& layout,
+                                                            uint32_t network_id,
+                                                            uint32_t prog_id,
+                                                            int strand_id,
+                                                            int strand_order_id,
+                                                            allocation_type type);
     refcounted_obj_ptr<memory_impl> get_from_non_padded_pool(const layout& layout,
                                                              const primitive_id& id,
                                                              uint32_t network_id,

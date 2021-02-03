@@ -124,10 +124,11 @@ memory_impl::ptr engine_impl::allocate_memory(const layout& layout,
                                               primitive_id id,
                                               uint32_t network_id,
                                               std::set<primitive_id> dependencies,
+                                              uint32_t prog_id, int strand_id, int strand_order_id,
                                               allocation_type type,
                                               bool reusable) {
     if (use_memory_pool())
-        return _memory_pool.get_memory(layout, id, network_id, dependencies, type, reusable);
+        return _memory_pool.get_memory(layout, id, network_id, dependencies, prog_id, strand_id, strand_order_id, type, reusable);
     return _memory_pool.get_memory(layout, type, network_id);
 }
 

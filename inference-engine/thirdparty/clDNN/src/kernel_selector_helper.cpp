@@ -20,6 +20,7 @@
 
 #include "program_node.h"
 #include "program_impl.h"
+#include "memory_impl.h"
 
 #include <string>
 #include <vector>

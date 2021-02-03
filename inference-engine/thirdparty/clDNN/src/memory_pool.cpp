@@ -210,6 +210,88 @@ void memory_pool::release_memory(memory_impl* mem,
     }
 }
 
+void memory_pool::prepare_strands(uint32_t prog_id, const memory_strands& strands) {
+    _stranded_pool[prog_id].alloc_info = strands;
+}
+
+memory_impl::ptr memory_pool::get_from_stranded_pool(const layout& l_in,
+                                                    uint32_t network_id,
+                                                    uint32_t prog_id,
+                                                    int strand_id,
+                                                    int strand_order_id,
+                                                    allocation_type type) {
+    if (l_in.format == format::fs_b_yx_fsv32 ||
+        l_in.format == format::b_fs_yx_fsv32 ||
+        l_in.format == format::b_fs_zyx_fsv32)
+        return alloc_memory(l_in, type, network_id);
+
+    bool can_use_device_mem = _engine->supports_allocation(allocation_type::usm_device);
+    auto lockable_type = _engine->get_lockable_preffered_memory_allocation_type();
+
+    auto& record = _stranded_pool[prog_id];
+    auto& _info = record.alloc_info;
+
+    auto found = record.network_memory.end();
+    auto it = record.network_memory.begin();
+    while (it != record.network_memory.end()) {
+        if (it->_network_id == network_id) {
+            found = it;
+        }
+        it++;
+    }
+
+    if (found == record.network_memory.end()) {
+        found = record.network_memory.emplace(record.network_memory.end(), network_id, _info.size());
+
+        // didn't find such network? allocate strands for it
+        for (size_t i = 0; i < _info.size(); i++) {
+            cldnn::layout ml(data_types::u8, format::bfyx, tensor(1));
+            auto& allocated = record.network_memory.back().mem_array[i];
+            if (can_use_device_mem) {
+                if (_info[i].sz_even > 0) {
+                    ml.size.spatial[0] = TensorValue(_info[i].sz_even);
+                    allocated._memory_even = alloc_memory(ml, allocation_type::usm_device, network_id, false);
+                }
+                if (_info[i].sz_odd > 0) {
+                    ml.size.spatial[0] = TensorValue(_info[i].sz_odd);
+                    allocated._memory_odd = alloc_memory(ml, allocation_type::usm_device, network_id, false);
+                }
+                if (_info[i].sz_even_lock > 0) {
+                    ml.size.spatial[0] = TensorValue(_info[i].sz_even_lock);
+                    allocated._memory_even_lockable = alloc_memory(ml, lockable_type, network_id, false);
+                }
+                if (_info[i].sz_odd_lock > 0) {
+                    ml.size.spatial[0] = TensorValue(_info[i].sz_odd_lock);
+                    allocated._memory_odd_lockable = alloc_memory(ml, lockable_type, network_id, false);
+                }
+            } else {
+                // reuse lockable memory for all buffers
+                if (_info[i].sz_even > 0 || _info[i].sz_even_lock > 0) {
+                    ml.size.spatial[0] = TensorValue(std::max(_info[i].sz_even, _info[i].sz_even_lock));
+                    allocated._memory_even = allocated._memory_even_lockable = alloc_memory(ml, lockable_type, network_id, false);
+                }
+                if (_info[i].sz_odd > 0 || _info[i].sz_odd_lock > 0) {
+                    ml.size.spatial[0] = TensorValue(std::max(_info[i].sz_odd, _info[i].sz_odd_lock));
+                    allocated._memory_odd = allocated._memory_odd_lockable = alloc_memory(ml, lockable_type, network_id, false);
+                }
+            }
+        }
+    }
+
+    auto& strand_mem = found->mem_array[strand_id];
+    if (strand_order_id & 0x01) {
+        if (type == allocation_type::usm_device)
+            return _engine->reinterpret_buffer(*strand_mem._memory_odd, l_in);
+        else
+            return _engine->reinterpret_buffer(*strand_mem._memory_odd_lockable, l_in);
+    } else {
+        if (type == allocation_type::usm_device)
+            return _engine->reinterpret_buffer(*strand_mem._memory_even, l_in);
+        else
+            return _engine->reinterpret_buffer(*strand_mem._memory_even_lockable, l_in);
+    }
+}
+
 memory_impl::ptr memory_pool::get_from_non_padded_pool(const layout& layout,
                                                        const primitive_id& id,
                                                        uint32_t network_id,
@@ -312,13 +394,18 @@ memory_impl::ptr memory_pool::get_memory(const layout& layout,
                                          const primitive_id& id,
                                          uint32_t network_id,
                                          const std::set<primitive_id>& restrictions,
+                                         uint32_t prog_id, int strand_id, int strand_order_id,
                                          allocation_type type,
                                          bool reusable_across_network) {
     if (reusable_across_network) {
         // reusable within the same network
         if (!layout.format.is_image() && layout.data_padding == padding{{0, 0, 0, 0}, 0}) {
             // non-padded buffers
-            return get_from_non_padded_pool(layout, id, network_id, restrictions, type);
+            if (strand_id != -1 && strand_order_id != -1 && prog_id > -1)
+                //return get_from_stranded_pool(layout, network_id, prog_id, strand_id, strand_order_id, type);
+                return get_from_non_padded_pool(layout, id, network_id, restrictions, type);
+            else
+                return get_from_non_padded_pool(layout, id, network_id, restrictions, type);
         } else if (!layout.format.is_image()) {
             // padded buffers
             return get_from_padded_pool(layout, id, network_id, restrictions, type);
@@ -398,25 +485,31 @@ memory_pool::memory_pool(engine_impl& engine) : _engine(&engine), _temp_memory_u
 void memory_pool::dump_memory_pool(const program_impl& program, std::string& path, std::string& dep) {
     using namespace std;
     ofstream log(path);
+    uint64_t total_sz = 0;
 
     log << "\nNon-padded pool:" << endl;
     log << "Size\tUsers:" << endl;
     for (const auto& record : _non_padded_pool) {
         log << record.first;
+        total_sz += record.first;
         for (const auto& usr : record.second._users) log << ", " << usr;
         log << endl;
     }
+    log << "Total:" << total_sz << endl;
 
     log << "\n--- Padded pool: ---" << endl;
     log << "Size\tUsers:" << endl;
+    total_sz = 0;
     for (const auto& record : _padded_pool) {
         for (const auto& mem : record.second) {
             log << mem._memory->size();
+            total_sz += mem._memory->size();
             for (const auto& usr : mem._users) log << ", " << usr;
             log << endl;
         }
     }
-    log << dep;
+    log << "Total:" << total_sz << endl;
+    log << endl << dep;
     log.close();
     color_graph(program);
 }

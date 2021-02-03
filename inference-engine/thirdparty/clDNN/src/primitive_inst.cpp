@@ -172,10 +172,7 @@ memory_impl::ptr primitive_inst::allocate_output() {
 
     // For outputs, cpu prim we want to have lockable alloc type
     // Also if the successor of a node is an cpu, then memory needs to be lockable.
-    auto use_lockable_memory = _node.is_output() || _node.get_selected_impl()->is_cpu()
-                               || std::any_of(_node.get_users().begin(), _node.get_users().end(),
-                                              [](const program_node* n) {return n->get_selected_impl()->is_cpu() || n->can_be_optimized(); })
-                               || engine.supports_allocation(allocation_type::usm_device) == false;
+    auto use_lockable_memory = _node.need_lockable_memory() || engine.supports_allocation(allocation_type::usm_device) == false;
     allocation_type alloc_type = use_lockable_memory ?
                                  engine.get_lockable_preffered_memory_allocation_type(layout.format.is_image_2d())
                                                      : allocation_type::usm_device;
@@ -184,6 +181,7 @@ memory_impl::ptr primitive_inst::allocate_output() {
                                       _node.id(),
                                       net_id,
                                       _node.get_memory_dependencies(),
+                                      _node.get_program().get_id(), _node.get_strand_id(), _node.get_strand_order_id(),
                                       alloc_type,
                                       false);
     } else if (_network.is_internal() && _node.is_output() && _node.is_type<generic_layer>() &&
@@ -196,6 +194,7 @@ memory_impl::ptr primitive_inst::allocate_output() {
                                   _node.id(),
                                   net_id,
                                   _node.get_memory_dependencies(),
+                                  _node.get_program().get_id(), _node.get_strand_id(), _node.get_strand_order_id(),
                                   alloc_type,
                                   true);
 }
