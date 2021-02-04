@@ -401,9 +401,8 @@ memory_impl::ptr memory_pool::get_memory(const layout& layout,
         // reusable within the same network
         if (!layout.format.is_image() && layout.data_padding == padding{{0, 0, 0, 0}, 0}) {
             // non-padded buffers
-            if (strand_id != -1 && strand_order_id != -1 && prog_id > -1)
-                //return get_from_stranded_pool(layout, network_id, prog_id, strand_id, strand_order_id, type);
-                return get_from_non_padded_pool(layout, id, network_id, restrictions, type);
+            if (strand_id != -1 && strand_order_id != -1)
+                return get_from_stranded_pool(layout, network_id, prog_id, strand_id, strand_order_id, type);
             else
                 return get_from_non_padded_pool(layout, id, network_id, restrictions, type);
         } else if (!layout.format.is_image()) {

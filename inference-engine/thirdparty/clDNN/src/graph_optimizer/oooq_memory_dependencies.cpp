@@ -119,17 +119,25 @@ void oooq_memory_dependencies::run(program_impl& p) {
 
         if (node->is_type<input_layout>() &&
             node->get_output_layout().format < format::oiyx) {
+            const auto& users = node->get_users();
+            bool add_strand = true;
+            if (users.size() < 2 &&
+                (!users.front()->is_in_data_flow() ||
+                  users.front()->is_type<generic_layer>()))
+                add_strand = false;
 
             //add new starting strand
-            node_info.strand_id = global_strand_id++;
+            if (add_strand) {
+                node_info.strand_id = global_strand_id++;
 
-            oooq_link new_strand = { node, node_info.order_id, node_info.strand_id,
-                                    node->get_output_layout().bytes_count(), nullptr };
-            input_strands.push_back(new_strand);
+                oooq_link new_strand = { node, node_info.order_id, node_info.strand_id,
+                                        node->get_output_layout().bytes_count(), nullptr };
+                input_strands.push_back(new_strand);
 
-            std::list<program_node*> steps = { node };
-            oooq_strand strand = { steps, node->get_output_layout().bytes_count() };
-            strands.push_back(strand);
+                std::list<program_node*> steps = { node };
+                oooq_strand strand = { steps, node->get_output_layout().bytes_count() };
+                strands.push_back(strand);
+            }
         }
         oooq_map[node] = node_info;
     }
@@ -229,7 +237,7 @@ void oooq_memory_dependencies::run(program_impl& p) {
         };*/
         // remove nodes that depend on other nodes from this step -
         // they should be considered on later steps
-        auto itrA = step_list.begin();
+        /* auto itrA = step_list.begin();
         while (itrA != step_list.end()) {
         next_candidate:
             auto itrB = itrA;
@@ -244,22 +252,21 @@ void oooq_memory_dependencies::run(program_impl& p) {
                     itrB++;
             }
             itrA++;
-        }
+        } */
         /*std::cout << "after dep removal:\n";
         for (auto& step_node : step_list) {
             std::cout << "[" << step_node.order_id << "], " << step_node.node->id() << std::endl;
         };*/
 
         // find best candidate for every input to continue its strand
-        int max_order_id = INT_MAX;
         for (auto& input : input_strands) {
-            int min_order = max_order_id;
+            int best_order = -1;
             auto best_output = step_list.end();
             auto itr = step_list.begin();
             while (itr != step_list.end()) {
-                if (itr->parent == input.node && itr->order_id < min_order) {
+                if (itr->parent == input.node && itr->order_id > best_order) {
                     best_output = itr;
-                    min_order = itr->order_id;
+                    best_order = itr->order_id;
                 }
                 itr++;
             }
@@ -347,11 +354,11 @@ void oooq_memory_dependencies::run(program_impl& p) {
                         //std::cout << "B head depends on A tail, continue\n";
                         continue;
                     } else {
-                        //std::cout << "B head overlaps A tail\n";
+                        //std::cout << "B head overlaps A tail, ";
                         first = sA_itr;
                         second = sB_itr;
                         if (user_bitmap[order_B2].is_set(order_A2)) {
-                            //std::cout << "A wraps B\n";
+                            //std::cout << "A wraps B, ";
                             wrap = true;
                         }
                     }
@@ -362,12 +369,12 @@ void oooq_memory_dependencies::run(program_impl& p) {
                         //std::cout << "A head depends on B tail, continue\n";
                         continue;
                     } else {
-                        //std::cout << "A head overlaps B tail\n";
+                        //std::cout << "A head overlaps B tail, ";
                         first = sB_itr;
                         second = sA_itr;
                         swap = true;
                         if (user_bitmap[order_A2].is_set(order_B2)) {
-                            //std::cout << "B wraps A\n";
+                            //std::cout << "B wraps A, ";
                             wrap = true;
                         }
                     }
@@ -380,6 +387,7 @@ void oooq_memory_dependencies::run(program_impl& p) {
 
                 std::list<program_node*> steps;
                 int tail_shift = 0, head_shift = 0;
+
                 if (wrap) {
                     auto f_head = first->node_steps.begin();
                     auto f_tail = first->node_steps.rbegin();
@@ -401,7 +409,14 @@ void oooq_memory_dependencies::run(program_impl& p) {
                     } while (f_tail != first->node_steps.rend());
 
                     auto mid_sz = first->node_steps.size() - head_shift - tail_shift;
-                    if (second->node_steps.size() > mid_sz) {
+                    auto cand_sz = second->node_steps.size();
+
+                    /*if (mid_sz == 0) {
+                        std::cout << "empty middle ";
+                    }*/
+                    
+                    // forbid self-dependency in resulting strand
+                    if (mid_sz > 0 && cand_sz > mid_sz) {
                         // second is bigger than middle part of the first, so swap them
                         // save middle nodes into separate list
                         auto hi = std::next(first->node_steps.begin(), head_shift);
@@ -415,6 +430,7 @@ void oooq_memory_dependencies::run(program_impl& p) {
                             first->node_steps.end());
                         first->node_steps.resize(head_shift);
                         first->node_steps.splice(first->node_steps.end(), second->node_steps);
+                        //std::cout << ", merge, mid_sz=" << mid_sz << ", cand_sz=" << cand_sz;
                         merged = true;
                     }
                 } else {
@@ -439,10 +455,14 @@ void oooq_memory_dependencies::run(program_impl& p) {
                         head_shift++;
                     } while (s_head != second->node_steps.end());
 
-                    auto l1 = (first->node_steps.size() - tail_shift) + second->node_steps.size();
-                    auto l2 = first->node_steps.size() + (second->node_steps.size() - head_shift);
+                    auto sz1 = first->node_steps.size();
+                    auto sz2 = second->node_steps.size();
+                    auto l1 = sz1 + sz2 - tail_shift;
+                    auto l2 = sz1 + sz2 - head_shift;
+                    //std::cout << ", sz1=" << sz1 << ", sz2=" << sz2;
+                    //std::cout << ", l1=" << l1 << ", l2=" << l2;
 
-                    if (second->node_steps.size() > tail_shift || first->node_steps.size() > head_shift) {
+                    if ((l1 > sz1 && l1 > sz2) || (l2 > sz1 && l2 > sz2)) {
                         if (l1 > l2) {
                             // move remaining tail nodes into new strand
                             auto si = first->node_steps.rbegin();
@@ -452,6 +472,8 @@ void oooq_memory_dependencies::run(program_impl& p) {
                             //merge remainder with second
                             first->node_steps.resize(first->node_steps.size() - tail_shift);
                             first->node_steps.splice(first->node_steps.end(), second->node_steps);
+                            //std::cout << ", merge, drop tail";
+                            merged = true;
                         } else {
                             // move remaining head nodes into new strand
                             auto si = second->node_steps.begin();
@@ -463,13 +485,14 @@ void oooq_memory_dependencies::run(program_impl& p) {
                                 second->node_steps,
                                 std::next(second->node_steps.begin(), head_shift),
                                 second->node_steps.end());
+                            //std::cout << ", merge, drop head";
+                            merged = true;
                         }
-                        merged = true;
                     }
+                    //else std::cout << ", no profit";
                 }
-                //std::cout << "head_shift " << head_shift << ", tail_shift " << tail_shift << std::endl;
+                //std::cout << ", tail_shift=" << tail_shift << ", head_shift=" << head_shift << std::endl;
                 if (merged) {
-                    //std::cout << "Merge\n";
                     oooq_strand strand = { steps, 0 };
 
                     // A will contain bigger merged strand, new smaller strand will go into B
@@ -478,6 +501,7 @@ void oooq_memory_dependencies::run(program_impl& p) {
                     *sB_itr = strand;
                     total_merged++;
                 }
+                //std::cout << std::endl;
                 sB_itr++;
             }
             sA_itr++;
@@ -504,10 +528,14 @@ void oooq_memory_dependencies::run(program_impl& p) {
                     continue;
                 }
 
-                int order_A1 = oooq_map[sA_itr->node_steps.front()].order_id;
-                int order_A2 = oooq_map[sA_itr->node_steps.back()].order_id;
-                int order_B1 = oooq_map[sB_itr->node_steps.front()].order_id;
-                int order_B2 = oooq_map[sB_itr->node_steps.back()].order_id;
+                const auto& Afront = sA_itr->node_steps.front();
+                const auto& Aback = sA_itr->node_steps.back();
+                const auto& Bfront = sB_itr->node_steps.front();
+                const auto& Bback = sB_itr->node_steps.back();
+                int order_A1 = oooq_map[Afront].order_id;
+                int order_A2 = oooq_map[Aback].order_id;
+                int order_B1 = oooq_map[Bfront].order_id;
+                int order_B2 = oooq_map[Bback].order_id;
 
                 /*std::cout << "A:\n";
                 for (auto& node : sA_itr->node_steps) {
@@ -518,20 +546,33 @@ void oooq_memory_dependencies::run(program_impl& p) {
                     std::cout << "[" << oooq_map[node].order_id << "] " << node->id() << std::endl;
                 }*/
                 if (user_bitmap[order_A2].is_set(order_B1)) {
-                    // B head depends on A tail
-                    //std::cout << "Remain merge, erase B" << std::endl;
-                    sA_itr->node_steps.splice(sA_itr->node_steps.end(), sB_itr->node_steps);
-                    sB_itr = strands.erase(sB_itr);
-                    total_merged++;
+                    //std::cout << "B head depends on A tail, ";
+                    auto& users = Aback->get_users();
+                    if (std::find(users.begin(), users.end(), Bfront) != users.end()) {
+                        //std::cout << "direct child\n";
+                        sB_itr++;
+                    } else {
+                        //std::cout << "merge, erase B\n";
+                        sA_itr->node_steps.splice(sA_itr->node_steps.end(), sB_itr->node_steps);
+                        sB_itr = strands.erase(sB_itr);
+                        total_merged++;
+                    }
                 } else if (user_bitmap[order_B2].is_set(order_A1)) {
-                    // A head depends on B tail
-                    //std::cout << "Remain merge, erase A" << std::endl;
-                    sB_itr->node_steps.splice(sB_itr->node_steps.end(), sA_itr->node_steps);
-                    *sA_itr = *sB_itr;
-                    sB_itr = strands.erase(sB_itr);
-                    total_merged++;
+                    //std::cout << "A head depends on B tail, ";
+                    auto& users = Bback->get_users();
+                    if (std::find(users.begin(), users.end(), Afront) != users.end()) {
+                        //std::cout << "direct child\n";
+                        sB_itr++;
+                    } else {
+                        //std::cout << "merge, erase A\n";
+                        sB_itr->node_steps.splice(sB_itr->node_steps.end(), sA_itr->node_steps);
+                        *sA_itr = *sB_itr;
+                        sB_itr = strands.erase(sB_itr);
+                        total_merged++;
+                    }
                 } else {
                     // no dependency, pick up next
+                    //std::cout << "No dependency\n";
                     sB_itr++;
                 }
             }
@@ -589,7 +630,7 @@ void oooq_memory_dependencies::run(program_impl& p) {
         std::cout << "Non-padded alloc:\n";
         std::cout << turn << " device nodes, " << si.sz_even << " + " << si.sz_odd << " bytes\n";
         std::cout << lockable_turn << " lockable nodes, " << si.sz_even_lock << " + " << si.sz_odd_lock << " bytes\n";
-        std::cout << "=============================================================================" << std::endl;
+        //std::cout << "=============================================================================" << std::endl;
         total_sz += si.sz_even + si.sz_odd + si.sz_even_lock + si.sz_odd_lock;
     }
     std::cout << "\nTotal non-padded: " << total_sz << std::endl;
