@@ -53,6 +53,8 @@
 #define DUMP_LAYER_NAME ""
 #endif
 
+#define CLDNN_TRACE_IR_ENGINE (&get_engine())
+
 namespace cldnn {
 
 network::network(program const& program, uint16_t stream_id)
@@ -364,6 +366,7 @@ void network_impl::reset_execution(bool wait) {
 }
 
 void network_impl::set_input_data(const primitive_id& id, memory_impl& data) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("network_impl::set_input_data(" + id + ")");
     std::shared_ptr<primitive_inst> primitive_inst;
 
     primitive_inst = find_primitive(id);
@@ -383,6 +386,7 @@ void network_impl::set_input_data(const primitive_id& id, memory_impl& data) {
 }
 
 void network_impl::set_output_memory(const primitive_id& id, memory_impl& mem) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("network_impl::set_output_memory(" + id + ")");
     std::shared_ptr<primitive_inst> primitive_inst;
 
     primitive_inst = find_primitive(id);
@@ -454,6 +458,8 @@ std::string network_impl::get_primitive_info(const primitive_id& id) const {
 }
 
 void network_impl::allocate_primitives() {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("network_impl::allocate_primitives");
+    CLDNN_TRACE_IR_MEM_INTERNAL
     std::vector<std::shared_ptr<program_node>> nodes_to_allocate{};
     for (auto node : _program->get_processing_order()) {
         nodes_to_allocate.push_back(_program->get_node_ptr(node->id()));
@@ -475,6 +481,7 @@ void network_impl::allocate_primitives() {
     for (auto const& node : nodes_to_allocate) {
         allocate_primitive_instance(*node);
     }
+    CLDNN_TRACE_IR_MEM_INTERNAL
 }
 
 void network_impl::build_insts_deps() {
@@ -496,7 +503,8 @@ void network_impl::add_to_exec_order(const primitive_id& id) {
 }
 
 void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& events) {
-    OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "NetworkImpl::Execute");
+    //OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "NetworkImpl::Execute");
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("network_impl::execute()");
     // Wait for previous execution completion
     reset_execution(false);
 
@@ -521,6 +529,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
     cl::SharedSurfLock lock(get_engine().get_context()->queue(get_id()).get(), surfaces, &err);
 
     set_arguments();
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_BEGIN("network_impl::execute() _exec_order loop")
 
     for (auto& inst : _exec_order) {
 #ifdef DEBUG_DUMP_PATH
@@ -560,7 +569,9 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
         get_engine().flush_network(get_id());
 #endif
     }
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_END
 
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_BEGIN("network_impl::execute() collect events loop")
     for (auto& inst : _program->get_processing_order()) {
         // Special handling for mutable data. The event should be the same as the user or dependency with highest
         // processing_num as the mutable_data can be updated when is both user or dependency.
@@ -585,6 +596,7 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
             }
         }
     }
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_END
 
     for (auto& dout : _data_outputs) {  // data primitives are not executed so if they are marked as output we need to add
                                         // them valid events manually
@@ -595,7 +607,9 @@ void network_impl::execute(const std::vector<refcounted_obj_ptr<event_impl>>& ev
         prim.second->reset_output_change();
     }
 
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_BEGIN("network_impl::execute() reset_events()")
     get_engine().get_context()->reset_events(get_id());
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_END
 
     // Using output of previouse network as input to another one may cause hazard (in OOOQ mode) if user would not
     // provide proper event to execution. Flushing pipeline should prevent this kind of issues.
@@ -678,6 +692,7 @@ std::vector<std::shared_ptr<primitive_inst>> network_impl::get_primitives(const 
 void network_impl::execute_primitive(const std::shared_ptr<primitive_inst>& primitive,
                                      const std::vector<refcounted_obj_ptr<event_impl>>& events) {
     auto id = primitive->id();
+    CLDNN_TRACE_IR_METHOD_INTERNAL("network_impl::execute_primitive("+id+")");
     auto it = _events.find(id);
     bool found = (it != _events.end());
     CLDNN_ERROR_BOOL(id,
@@ -694,6 +709,8 @@ void network_impl::execute_primitive(const std::shared_ptr<primitive_inst>& prim
 }
 
 void network_impl::allocate_mutable_data_for_streams(std::vector<std::shared_ptr<program_node>>& mutable_data_nodes) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("network_impl::allocate_mutable_data_for_streams");
+    CLDNN_TRACE_IR_MEM_INTERNAL
     // When multiple streams are used, mutable_data should be duplicated for each stream.
     while (!mutable_data_nodes.empty()) {
         auto it = mutable_data_nodes.begin();
@@ -722,9 +739,12 @@ void network_impl::allocate_mutable_data_for_streams(std::vector<std::shared_ptr
             mutable_data_nodes.erase(it);
         }
     }
+    CLDNN_TRACE_IR_MEM_INTERNAL
 }
 
 void network_impl::allocate_primitive_instance(program_node const& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("network_impl::allocate_primitive_instance("+ node.id() +")");
+    CLDNN_TRACE_IR_MEM_INTERNAL
     if (_primitives.count(node.id()))
         return;
 
@@ -746,6 +766,7 @@ void network_impl::allocate_primitive_instance(program_node const& node) {
     }
     if (node.is_constant())
         transfer_memory_to_device(inst, node);
+    CLDNN_TRACE_IR_MEM_INTERNAL
 }
 
 void network_impl::transfer_memory_to_device(std::shared_ptr<primitive_inst> instance, program_node const& node) {

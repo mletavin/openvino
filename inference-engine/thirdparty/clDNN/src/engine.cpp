@@ -29,7 +29,47 @@
 #include <set>
 #include <stdexcept>
 
+#ifdef ENABLE_CLDNN_PROFILING_PTRACE
+#ifdef _MSC_VER
+#include <intrin.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <psapi.h>
+#else
+#include <x86intrin.h>
+#include <time.h>
+#include <pthread.h>
+#include <unistd.h>
+#endif
+
+#include <fstream>
+#include <iostream>
+#include "document.h"
+#include "ostreamwrapper.h"
+#include "writer.h"
+#endif
+
 namespace cldnn {
+
+#ifdef ENABLE_CLDNN_PROFILING_PTRACE
+#define CLDNN_TRACE_IR_ENGINE (this)
+
+void engine::event_mark(const std::string name) {
+    _impl->event_mark(name);
+}
+void engine::event_begin(const std::string name) {
+    _impl->event_begin(name);
+}
+void engine::event_end(const std::string name) {
+    _impl->event_end(name);
+}
+void engine::async_start(const std::string name) {
+    _impl->async_start(name);
+}
+void engine::async_finish(const std::string name) {
+    _impl->async_finish(name);
+}
+#endif
 
 engine::engine(engine_types type, const device& dev, const engine_configuration& configuration)
     : _impl(new engine_impl(*dev.get(), configuration)) {
@@ -74,6 +114,9 @@ void engine::retain() {
     _impl->add_ref();
 }
 void engine::release() {
+#ifdef ENABLE_CLDNN_PROFILING_PTRACE
+    _impl->logger_flush();
+#endif
     _impl->release();
 }
 
@@ -257,11 +300,14 @@ gpu::device_info_internal engine_impl::get_device_info() const { return _context
 void* engine_impl::get_user_context() const { return static_cast<void*>(_context->context().get()); }
 
 void engine_impl::compile_program(program_impl& program) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("engine_impl::compile_program");
     auto& cache = _context->get_kernels_cache(program.get_id());
     if (!program.get_options().get<build_option_type::serialize_network>()->serialization_network_name.empty())
         cache.get_context().set_serialization_flag(true);
     // TODO: better compilation logic instead of a simple 'compile all'?
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_BEGIN("compile_program - cache.build_all()")
     cache.build_all();
+    CLDNN_TRACE_IR_SCOPE_INTERNAL_END
 }
 
 bool engine_impl::use_memory_pool() const {

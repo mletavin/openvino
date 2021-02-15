@@ -97,6 +97,8 @@ void program::release() {
     _impl->release();
 }
 
+#define CLDNN_TRACE_IR_ENGINE (engine.get())
+
 program_impl::program_impl(engine_impl& engine_ref,
                            topology_impl const& topology,
                            build_options const& options,
@@ -255,6 +257,7 @@ bool program_impl::analyze_output_size_handling_need() {
 // create new nodes for a program based on the set of nodes
 // method created to be used by propagate_constants to build sub program from constant nodes
 void program_impl::prepare_nodes(std::set<std::shared_ptr<program_node>> const& nodes) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("prepare_nodes()");
     for (const auto& itr : nodes) {
         if (itr.get()->is_type<data>()) {
             get_or_create(std::make_shared<input_layout>(itr.get()->id(),
@@ -288,6 +291,7 @@ void program_impl::prepare_nodes(std::set<std::shared_ptr<program_node>> const& 
 
 // create all nodes from topology primitives, add dependencies among them and create inputs list
 void program_impl::prepare_nodes(topology_impl const& topology) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("prepare_nodes(topology)");
     auto const& topo_map = topology.get_primitives();
     for (const auto& prim : topo_map) {
         get_or_create(prim.second);
@@ -306,6 +310,7 @@ void program_impl::prepare_nodes(topology_impl const& topology) {
 
 // add node's dependecies from its primitive dependencies
 void program_impl::add_node_dependencies(program_node* node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("add_node_dependencies("+node->id()+")");
     auto deps = node->get_primitive()->dependencies();
     // add pointers to node's dependencies
     for (auto& dep : deps) {
@@ -324,6 +329,7 @@ void program_impl::add_node_dependencies(program_node* node) {
    copies src_node dependecies to the destination node dest_node dependencies.
    But only to those which appaer in this program implementation nodes_map */
 void program_impl::copy_node_dependencies(program_node* dest_node, program_node* src_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("copy_node_dependencies("+src_node->id()+" -> "+dest_node->id()+")");
     if (dest_node->get_primitive()->id != src_node->get_primitive()->id) {
         throw std::runtime_error("Node " + src_node->get_primitive()->id + " and its copy " +
                                  dest_node->get_primitive()->id + " do not match.");
@@ -347,6 +353,7 @@ void program_impl::copy_node_dependencies(program_node* dest_node, program_node*
 }
 
 void program_impl::set_options() {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("set_options()");
     static std::atomic<uint32_t> id_gen{0};
     prog_id = ++id_gen;
     assert(prog_id != 0);
@@ -365,6 +372,7 @@ void program_impl::set_options() {
 }
 
 void program_impl::build_program(bool is_internal) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("build_program("+is_internal?"internal":""+")");
     init_graph();
     { pre_optimize_graph(is_internal); }
     run_graph_compilation();
@@ -380,7 +388,8 @@ void program_impl::build_program(bool is_internal) {
 }
 
 void program_impl::init_graph() {
-    OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::InitGraph");
+    //OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::InitGraph");
+    CLDNN_TRACE_IR_METHOD_INTERNAL("init_graph");
     apply_opt_pass<graph_initializations>();
 
     for (auto& node : processing_order) {
@@ -396,7 +405,8 @@ void program_impl::init_graph() {
 void program_impl::run_graph_compilation() { apply_opt_pass<compile_graph>(); }
 
 void program_impl::pre_optimize_graph(bool is_internal) {
-    OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::PreOptimizeGraph");
+    //OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::PreOptimizeGraph");
+    CLDNN_TRACE_IR_METHOD_INTERNAL("pre_optimize_graph");
     // trim to outputs
     apply_opt_pass<trim_to_outputs>();  // ToDo remove hidden dependencies from trimm pass
 
@@ -474,7 +484,8 @@ void program_impl::pre_optimize_graph(bool is_internal) {
 }
 
 void program_impl::post_optimize_graph(bool is_internal) {
-    OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::PostOptimizeGraph");
+    //OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::PostOptimizeGraph");
+    CLDNN_TRACE_IR_METHOD_INTERNAL("post_optimize_graph");
     // input reorder for fully connected if necessary
     apply_opt_pass<post_input_reorder>();
 
@@ -495,6 +506,7 @@ void program_impl::post_optimize_graph(bool is_internal) {
 
 // mark if the node is constant assuming that all dependencies are marked properly
 void program_impl::mark_if_constant(program_node& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("mark_if_constant");
     if (node.get_dependencies().empty())
         return;
     if (node.is_type<prior_box>())
@@ -510,6 +522,7 @@ void program_impl::mark_if_constant(program_node& node) {
 
 // mark if the node is in data flow assuming that all dependencies are marked properly
 void program_impl::mark_if_data_flow(program_node& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("mark_if_data_flow");
     if (node.is_type<mutable_data>() || node.is_type<input_layout>()) {
         node.data_flow = true;
     } else {
@@ -527,7 +540,9 @@ void program_impl::mark_if_data_flow(program_node& node) {
 }
 
 void program_impl::transfer_memory_to_device() {
-    OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::TransferMemory");
+    //OV_ITT_SCOPED_TASK(itt::domains::CLDNN, "ProgramImpl::TransferMemory");
+    CLDNN_TRACE_IR_METHOD_INTERNAL("transfer_memory_to_device");
+    CLDNN_TRACE_IR_MEM_INTERNAL
     for (auto& node : processing_order) {
         if (node->is_type<data>() && !node->need_lockable_memory()) {
             auto& data_node = node->as<data>();
@@ -546,9 +561,11 @@ void program_impl::transfer_memory_to_device() {
             }
         }
     }
+    CLDNN_TRACE_IR_MEM_INTERNAL
 }
 
 void program_impl::cleanup() {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("cleanup");
     for (auto& node : processing_order)
         if (!node->is_type<internal_primitive>())
             node->get_output_layout();
@@ -566,6 +583,7 @@ void program_impl::cleanup() {
 }
 
 void program_impl::add_split_outputs() {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("add_split_outputs");
     auto itr = nodes_map.begin();
     while (itr != nodes_map.end()) {
         auto node_itr = itr++;
@@ -594,6 +612,7 @@ program_impl::nodes_ordering& program_impl::get_processing_order() { return proc
 const program_impl::nodes_ordering& program_impl::get_processing_order() const { return processing_order; }
 
 void program_impl::prepare_memory_dependencies() {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("prepare_memory_dependencies");
     if (!get_engine().configuration().enable_memory_pool)
         return;
 
@@ -617,6 +636,8 @@ std::string program_impl::get_memory_dependencies_string() const {
 }
 
 void program_impl::apply_needed_padding(program_node& node, program_node& prev_node, const padding& needed_padding) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("apply_needed_padding("+
+                                    node.id() + ", " + prev_node.id()+")");
     auto target_layout = prev_node.get_output_layout();
 
     // Short circuit if padding did not change.
@@ -636,6 +657,7 @@ void program_impl::apply_needed_padding(program_node& node, program_node& prev_n
 }
 
 void program_impl::reverse_connection(program_node& dep_node, program_node& user_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("reverse_connection");
     if (std::find(dep_node.users.begin(), dep_node.users.end(), &user_node) != dep_node.users.end()) {
         remove_connection(dep_node, user_node);
         add_connection(user_node, dep_node);
@@ -645,6 +667,7 @@ void program_impl::reverse_connection(program_node& dep_node, program_node& user
 }
 
 program_node& program_impl::get_or_create(std::shared_ptr<primitive> prim) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("get_or_create("+prim->id+")");
     auto itr = nodes_map.lower_bound(prim->id);
     if (itr != nodes_map.end() && itr->first == prim->id)
         return *itr->second;
@@ -659,6 +682,7 @@ void program_impl::add_intermediate(program_node& node,
                                     size_t prev_idx,
                                     bool connect_int_node_with_old_dep,
                                     bool move_usrs_of_prev_to_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("add_intermediate");
     if (connect_int_node_with_old_dep && !node.dependencies.empty())
         throw std::invalid_argument(
             "Node which is about to be added in between two other nodes should not have any existing dependencies");
@@ -704,6 +728,7 @@ void program_impl::add_intermediate(program_node& node,
                                     program_node& prev,
                                     bool connect_int_node_with_old_dep,
                                     bool move_usrs_of_prev_to_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("add_intermediate");
     bool node_found = false;
     size_t idx = 0;
     for (size_t i = 0; i < next.get_dependencies().size(); i++) {
@@ -733,6 +758,7 @@ void program_impl::remove_connection(program_node& prev, program_node& next) {
 }
 
 void program_impl::remove_all_connections(program_node& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("remove_all_connections");
     // since the graph is not topological sorted, we need to remove the node from both dependencies and users
     for (auto& e : node.users) {
         e->dependencies.erase(std::remove(e->dependencies.begin(), e->dependencies.end(), &node),
@@ -746,6 +772,7 @@ void program_impl::remove_all_connections(program_node& node) {
 }
 
 void program_impl::rename(program_node& node, primitive_id const& new_id) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("rename");
     if (nodes_map.count(new_id))
         throw std::runtime_error("Trying to rename program_node but node with id " + new_id + " already exists");
     if (node.is_output())
@@ -766,6 +793,7 @@ void program_impl::rename(program_node& node, primitive_id const& new_id) {
 }
 
 void program_impl::swap_names(program_node& node1, program_node& node2) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("swap_names");
     const auto _extract_id = [](program_node& node) -> primitive_id& {
         if (!node.is_type<internal_primitive>())
             return const_cast<primitive_id&>(node.desc->id);
@@ -778,6 +806,7 @@ void program_impl::swap_names(program_node& node1, program_node& node2) {
 }
 
 void program_impl::replace_all_usages(program_node& old_node, program_node& new_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("replace_all_usages");
     const std::list<program_node*> users(old_node.users);
     auto itr = users.begin();
     bool end = (itr == users.end());
@@ -789,6 +818,7 @@ void program_impl::replace_all_usages(program_node& old_node, program_node& new_
 }
 
 void program_impl::replace(program_node& old_node, program_node& new_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("replace");
     if (!new_node.dependencies.empty() || !new_node.users.empty())
         throw std::invalid_argument("Node which is about to replace other node should be detached");
 
@@ -850,6 +880,7 @@ void program_impl::replace(program_node& old_node, program_node& new_node) {
 }
 
 bool program_impl::remove_if_dangling(program_node& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("remove_if_dangling");
     if (!node.users.empty())
         return false;
     if (!node.dependencies.empty())
@@ -868,6 +899,7 @@ bool program_impl::remove_if_dangling(program_node& node) {
 }
 
 bool program_impl::extract_and_remove(program_node& node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("extract_and_remove");
     if (node.get_dependencies().size() != 1)
         return false;
 
@@ -898,6 +930,7 @@ bool program_impl::extract_and_remove(program_node& node) {
 }
 
 void program_impl::fuse_nodes(program_node &fused_node, program_node &peer_node) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("fuse_nodes");
     auto peer_layout = peer_node.get_output_layout();
     fused_primitive_desc local_desc;
     local_desc.node = get_node_ptr(peer_node.id());
@@ -968,6 +1001,7 @@ void program_impl::fuse_nodes(program_node &fused_node, program_node &peer_node)
 }
 
 void program_impl::remove_nodes(std::list<program_node*>& to_remove) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("remove_nodes");
     for (auto const& node : to_remove) {
         if (node->is_input()) {
             get_inputs().remove(node);
@@ -1113,6 +1147,7 @@ void program_impl::save_pass_info(std::string pass_name) {
 
 void program_impl::add_optimized_primitive_info(primitive_id optimized_primitive_id,
                                                 std::vector<primitive_id> replaced_with_ids) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("add_optimized_primitive_info");
     for (auto& e : optimized) {
         auto it = std::find_if(e.second.begin(), e.second.end(), [&optimized_primitive_id](const primitive_id& id) {
            return optimized_primitive_id == id;
@@ -1135,6 +1170,7 @@ const program_impl::primitives_info& program_impl::get_primitives_info() const {
 void program_impl::apply_opt_pass(base_pass& pass) { pm->run(*this, pass); }
 
 void program_impl::set_layout_optimizer_attributes(layout_optimizer& lo) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL("set_layout_optimizer_attributes");
     lo.set_implementation_forcing(options.get<build_option_type::force_implementations>()->forcing);
 
     // first pass to set layout optimization_attributes for topology

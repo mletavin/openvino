@@ -36,10 +36,11 @@
 #include <algorithm>
 
 namespace cldnn {
-
+#define CLDNN_TRACE_IR_ENGINE (&_network.get_engine())
 uint32_t primitive_inst::get_network_id() const { return _network.get_id(); }
 
 void primitive_inst::check_memory_to_set(const memory_impl& mem, const layout& layout) const {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("primitive_inst::check_memory_to_set");
     CLDNN_ERROR_LAYOUT_MISMATCH("network layout",
         "set memory layout",
         mem.get_layout(),
@@ -82,6 +83,7 @@ void primitive_inst::set_output_memory(memory_impl& mem) {
 
 event_impl::ptr primitive_inst::execute(const std::vector<event_impl::ptr>& events) {
     const auto primitive_id = id();
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("primitive_inst::execute("+primitive_id+")");
     CLDNN_ERROR_BOOL(primitive_id,
                      "Invalid/unset input",
                      !_has_valid_input,
@@ -111,6 +113,7 @@ event_impl::ptr primitive_inst::execute(const std::vector<event_impl::ptr>& even
 
 void primitive_inst::set_arguments() {
     const auto primitive_id = id();
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("primitive_inst::set_arguments("+primitive_id+")");
     CLDNN_ERROR_BOOL(primitive_id,
                      "Invalid/unset input",
                      !_has_valid_input,
@@ -132,6 +135,8 @@ void primitive_inst::build_deps() {
 
 primitive_inst::primitive_inst(network_impl& network, program_node const& node, bool allocate_memory)
     : _network(network), _node(node), _impl(node.get_selected_impl()), _output(), _output_changed(false) {
+    CLDNN_TRACE_IR_METHOD_INTERNAL ("primitive_inst::primitive_inst("+id()+")");
+    CLDNN_TRACE_IR_MEM_INTERNAL
     if (allocate_memory) {
         // In case when output is mutable_data primitive, and other users dependencies are only used for
         // suychronization, The output memory of such primitive will be fused with mutable_data
@@ -163,6 +168,7 @@ primitive_inst::primitive_inst(network_impl& network, program_node const& node, 
             _output = allocate_output();
         }
     }
+    CLDNN_TRACE_IR_MEM_INTERNAL
 }
 
 memory_impl::ptr primitive_inst::allocate_output() {
